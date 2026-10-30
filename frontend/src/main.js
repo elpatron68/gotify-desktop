@@ -75,6 +75,12 @@ function updateStatusLine(status) {
   } else {
     parts.push('Not configured');
   }
+  if (status.notifyReady === false) {
+    parts.push('Notify: fallback');
+  }
+  if (status.notifyError) {
+    parts.push('Notify error: ' + status.notifyError);
+  }
   if (status.error) {
     parts.push(status.error);
   }

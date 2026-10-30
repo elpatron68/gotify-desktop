@@ -21,12 +21,15 @@ import (
 
 // AppStatus is exposed to the frontend.
 type AppStatus struct {
-	Configured bool   `json:"configured"`
-	Connected  bool   `json:"connected"`
-	ServerURL  string `json:"serverUrl"`
-	View       string `json:"view"` // "setup" | "gotify"
-	Error      string `json:"error"`
-	MinPriority int   `json:"minPriority"`
+	Configured   bool   `json:"configured"`
+	Connected    bool   `json:"connected"`
+	ServerURL    string `json:"serverUrl"`
+	View         string `json:"view"` // "setup" | "gotify"
+	Error        string `json:"error"`
+	MinPriority  int    `json:"minPriority"`
+	NotifyReady  bool   `json:"notifyReady"`
+	NotifyError  string `json:"notifyError"`
+	LastMessageID uint  `json:"lastMessageId"`
 }
 
 // App is the Wails-bound application core.
@@ -131,12 +134,15 @@ func (a *App) GetStatus() AppStatus {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return AppStatus{
-		Configured:  a.cfg.Configured(),
-		Connected:   a.connected,
-		ServerURL:   a.cfg.ServerURL,
-		View:        a.view,
-		Error:       a.lastErr,
-		MinPriority: a.cfg.MinPriority,
+		Configured:    a.cfg.Configured(),
+		Connected:     a.connected,
+		ServerURL:     a.cfg.ServerURL,
+		View:          a.view,
+		Error:         a.lastErr,
+		MinPriority:   a.cfg.MinPriority,
+		NotifyReady:   a.notify.Ready(),
+		NotifyError:   a.notify.LastError(),
+		LastMessageID: a.cfg.LastMessageID,
 	}
 }
 
@@ -308,7 +314,13 @@ func (a *App) handleMessage(msg stream.Message) {
 	if id == "0" {
 		id = fmt.Sprintf("msg-%d", msg.AppID)
 	}
-	_ = a.notify.Show(id, msg.Title, msg.Message)
+	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
+		a.setError("notification: " + err.Error())
+		if a.tray != nil {
+			a.tray.SetStatus("Status: notify error")
+		}
+		a.emitStatus()
+	}
 
 	if msg.ID > 0 {
 		a.mu.Lock()
@@ -317,6 +329,11 @@ func (a *App) handleMessage(msg stream.Message) {
 		a.mu.Unlock()
 		_ = config.Save(cfg)
 	}
+}
+
+// TestNotification sends a local test notification (helps diagnose desktop notify setup).
+func (a *App) TestNotification() error {
+	return a.notify.Show("test", "Gotify Desktop", "Test notification from Gotify Desktop")
 }
 
 func (a *App) setError(msg string) {

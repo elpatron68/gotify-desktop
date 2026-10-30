@@ -19,3 +19,5 @@ export function OpenSettings():Promise<void>;
 export function Quit():Promise<void>;
 
 export function ShowWindow():Promise<void>;
+
+export function TestNotification():Promise<void>;

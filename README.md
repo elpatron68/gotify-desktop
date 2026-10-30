@@ -167,6 +167,14 @@ Settings are stored under the user config directory:
 
 Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`.
 
+Notification diagnostics are appended to `notify.log` in the same directory (e.g. `%AppData%\gotify-desktop\notify.log` on Windows).
+
+To verify only the Gotify WebSocket stream (from any machine with Go):
+
+```bash
+GOTIFY_URL=https://gotify.example.com GOTIFY_TOKEN=... go run ./cmd/streamcheck
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

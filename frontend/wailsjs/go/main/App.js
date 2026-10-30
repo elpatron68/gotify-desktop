@@ -37,3 +37,7 @@ export function Quit() {
 export function ShowWindow() {
   return window['go']['main']['App']['ShowWindow']();
 }
+
+export function TestNotification() {
+  return window['go']['main']['App']['TestNotification']();
+}
