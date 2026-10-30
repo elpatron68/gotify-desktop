@@ -6,13 +6,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
-	"github.com/gen2brain/beeep"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Notifier wraps Wails native notifications with a beeep/D-Bus fallback.
+// Notifier wraps Wails native notifications with a platform fallback.
 type Notifier struct {
 	mu      sync.Mutex
 	ctx     context.Context
@@ -29,31 +29,31 @@ func (n *Notifier) Init(ctx context.Context) error {
 	n.ctx = ctx
 	n.ensureLogger()
 
-	if err := runtime.InitializeNotifications(ctx); err != nil {
+	if err := wailsruntime.InitializeNotifications(ctx); err != nil {
 		n.initErr = err
 		n.ready = false
-		n.logf("wails InitializeNotifications failed: %v (will use beeep fallback)", err)
+		n.logf("wails InitializeNotifications failed: %v (will use platform fallback)", err)
 		return err
 	}
-	if !runtime.IsNotificationAvailable(ctx) {
+	if !wailsruntime.IsNotificationAvailable(ctx) {
 		n.initErr = fmt.Errorf("notifications not available on this platform")
 		n.ready = false
-		n.logf("%v (will use beeep fallback)", n.initErr)
+		n.logf("%v (will use platform fallback)", n.initErr)
 		return n.initErr
 	}
-	authorized, err := runtime.CheckNotificationAuthorization(ctx)
+	authorized, err := wailsruntime.CheckNotificationAuthorization(ctx)
 	if err == nil && !authorized {
-		authorized, err = runtime.RequestNotificationAuthorization(ctx)
+		authorized, err = wailsruntime.RequestNotificationAuthorization(ctx)
 		if err != nil || !authorized {
 			n.initErr = fmt.Errorf("notification permission denied")
 			n.ready = false
-			n.logf("%v (will use beeep fallback)", n.initErr)
+			n.logf("%v (will use platform fallback)", n.initErr)
 			return n.initErr
 		}
 	}
 	n.ready = true
 	n.initErr = nil
-	n.logf("wails notifications ready")
+	n.logf("wails notifications ready (GOOS=%s)", runtime.GOOS)
 	return nil
 }
 
@@ -77,7 +77,11 @@ func (n *Notifier) LastError() string {
 	return ""
 }
 
-// Show displays a desktop notification (Wails first, then beeep fallback).
+// Show displays a desktop notification.
+//
+// On Windows, Wails/WinRT often reports success for unpackaged apps without a
+// visible toast (missing Start Menu AUMID shortcut). We therefore always use the
+// PowerShell AUMID fallback on Windows. On other OSes, try Wails first, then beeep.
 func (n *Notifier) Show(id, title, body string) error {
 	n.mu.Lock()
 	ctx := n.ctx
@@ -89,9 +93,20 @@ func (n *Notifier) Show(id, title, body string) error {
 		title = "Gotify"
 	}
 
+	if runtime.GOOS == "windows" {
+		if err := showPlatformToast(title, body); err != nil {
+			n.setLastErr(err)
+			n.logf("windows toast failed id=%s: %v", id, err)
+			return err
+		}
+		n.setLastErr(nil)
+		n.logf("windows toast sent id=%s title=%q", id, title)
+		return nil
+	}
+
 	var firstErr error
 	if ready && ctx != nil {
-		err := runtime.SendNotification(ctx, runtime.NotificationOptions{
+		err := wailsruntime.SendNotification(ctx, wailsruntime.NotificationOptions{
 			ID:    id,
 			Title: title,
 			Body:  body,
@@ -102,19 +117,19 @@ func (n *Notifier) Show(id, title, body string) error {
 			return nil
 		}
 		firstErr = err
-		n.logf("wails SendNotification failed: %v — trying beeep", err)
+		n.logf("wails SendNotification failed: %v — trying fallback", err)
 	}
 
-	if err := beeep.Notify(title, body, ""); err != nil {
+	if err := showPlatformToast(title, body); err != nil {
 		if firstErr != nil {
-			err = fmt.Errorf("wails: %v; beeep: %w", firstErr, err)
+			err = fmt.Errorf("wails: %v; fallback: %w", firstErr, err)
 		}
 		n.setLastErr(err)
 		n.logf("notification failed: %v", err)
 		return err
 	}
 	n.setLastErr(nil)
-	n.logf("beeep notification sent title=%q", title)
+	n.logf("fallback notification sent title=%q", title)
 	return nil
 }
 

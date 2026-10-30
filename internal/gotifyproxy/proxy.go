@@ -1,9 +1,12 @@
 package gotifyproxy
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -94,6 +97,7 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 	p.mu.RUnlock()
 
 	path := r.URL.Path
+	uiRequest := path == UIPrefix || strings.HasPrefix(path, UIPrefix+"/")
 	if path == UIPrefix {
 		path = "/"
 	} else if strings.HasPrefix(path, UIPrefix+"/") {
@@ -113,32 +117,49 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 		req.Host = target.Host
 		req.Header.Set("X-Gotify-Key", token)
 		req.Header.Set("Authorization", "Bearer "+token)
-		// Prefer our session cookie for Gotify v3 UI auth.
 		req.Header.Set("Cookie", "gotify-client-token="+token)
 		req.Header.Del("Origin")
 		req.Header.Del("Referer")
 	}
 	proxy.ModifyResponse = func(resp *http.Response) error {
-		// Allow embedding / same-origin shell usage.
 		resp.Header.Del("X-Frame-Options")
 		resp.Header.Del("Content-Security-Policy")
-		// Keep redirects inside the local proxy when possible.
+		// Establish a same-origin session cookie for the embedded UI (Gotify v3).
+		resp.Header.Add("Set-Cookie", "gotify-client-token="+token+"; Path=/; SameSite=Lax")
+
 		if loc := resp.Header.Get("Location"); loc != "" {
 			if u, err := url.Parse(loc); err == nil {
 				if u.Host == "" || strings.EqualFold(u.Host, target.Host) {
 					u.Scheme = ""
 					u.Host = ""
-					path := u.Path
-					if path == "" || path == "/" {
+					locPath := u.Path
+					if locPath == "" || locPath == "/" {
 						resp.Header.Set("Location", UIPrefix+"/")
-					} else if isGotifyAPIPath(path) {
+					} else if isGotifyAPIPath(locPath) {
 						resp.Header.Set("Location", u.String())
 					} else {
-						u.Path = UIPrefix + path
+						u.Path = UIPrefix + locPath
 						resp.Header.Set("Location", u.String())
 					}
 				}
 			}
+		}
+
+		if uiRequest && strings.Contains(resp.Header.Get("Content-Type"), "text/html") && resp.Body != nil {
+			body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+			_ = resp.Body.Close()
+			if err != nil {
+				return err
+			}
+			inject := []byte(`<script>(function(){var t=` + strconv.Quote(token) + `;try{localStorage.setItem('gotify-login-key',t);}catch(e){}try{document.cookie='gotify-client-token='+encodeURIComponent(t)+'; path=/; SameSite=Lax';}catch(e){}})();</script>`)
+			if bytes.Contains(body, []byte("<head>")) {
+				body = bytes.Replace(body, []byte("<head>"), append([]byte("<head>"), inject...), 1)
+			} else {
+				body = append(inject, body...)
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+			resp.ContentLength = int64(len(body))
 		}
 		return nil
 	}

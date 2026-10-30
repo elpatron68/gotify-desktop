@@ -11,6 +11,9 @@ const statusLine = document.getElementById('status-line');
 const connectBtn = document.getElementById('connect-btn');
 const serverInput = document.getElementById('server-url');
 
+/** @type {'setup'|'gotify'|null} */
+let currentView = null;
+
 function showError(msg) {
   if (!msg) {
     errorEl.hidden = true;
@@ -24,13 +27,11 @@ function showError(msg) {
 function applySession(token) {
   if (!token) return;
   try {
-    // Gotify < v3 web UI
     localStorage.setItem('gotify-login-key', token);
   } catch (_) {
     /* ignore */
   }
   try {
-    // Gotify v3 cookie session (non-HttpOnly mirror for same-origin proxy)
     document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
   } catch (_) {
     /* ignore */
@@ -38,17 +39,17 @@ function applySession(token) {
 }
 
 function showSetup(status) {
+  currentView = 'setup';
   setupView.hidden = false;
   gotifyView.hidden = true;
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
   }
-  // Unload remote UI while editing settings.
   frame.src = 'about:blank';
   updateStatusLine(status);
 }
 
-async function showGotify(payload) {
+async function showGotify(payload, {forceReload = false} = {}) {
   let token = payload?.token;
   let uiPath = payload?.uiPath;
   if (!token) {
@@ -58,10 +59,17 @@ async function showGotify(payload) {
     uiPath = await GetUIPath();
   }
   applySession(token);
-  // Cache-bust so tryAuthenticate runs after localStorage/cookie are set.
-  frame.src = `${uiPath}${uiPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
+
+  const alreadyShowing = currentView === 'gotify' && !gotifyView.hidden;
+  currentView = 'gotify';
   setupView.hidden = true;
   gotifyView.hidden = false;
+
+  // Do not reload the iframe on every stream status tick — that wiped the Gotify session.
+  if (!forceReload && alreadyShowing && frame.src && !frame.src.endsWith('about:blank')) {
+    return;
+  }
+  frame.src = `${uiPath}${uiPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
 }
 
 function updateStatusLine(status) {
@@ -90,9 +98,13 @@ function updateStatusLine(status) {
 async function applyStatus(status) {
   if (!status) return;
   if (status.view === 'gotify' && status.configured) {
-    await showGotify(null);
-  } else {
+    // Only mount Gotify once; later status events only refresh the status line.
+    await showGotify(null, {forceReload: false});
+  } else if (currentView !== 'setup') {
     showSetup(status);
+  } else {
+    updateStatusLine(status);
+    return;
   }
   updateStatusLine(status);
 }
@@ -108,7 +120,7 @@ form.addEventListener('submit', async (event) => {
   try {
     await Connect(serverUrl, username, password);
     document.getElementById('password').value = '';
-    await showGotify(null);
+    await showGotify(null, {forceReload: true});
   } catch (err) {
     showError(String(err));
   } finally {
@@ -124,7 +136,7 @@ EventsOn('show-setup', () => {
   GetStatus().then(showSetup).catch(console.error);
 });
 EventsOn('show-gotify', (payload) => {
-  showGotify(payload).catch(console.error);
+  showGotify(payload, {forceReload: true}).catch(console.error);
 });
 
 GetStatus()
