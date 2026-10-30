@@ -25,6 +25,7 @@ func main() {
 		MinWidth:          640,
 		MinHeight:         480,
 		HideWindowOnClose: true,
+		Menu:              app.buildMenu(),
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

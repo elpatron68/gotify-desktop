@@ -1,3 +1,5 @@
+//go:build !darwin
+
 package tray
 
 import (
@@ -6,24 +8,17 @@ import (
 	"fyne.io/systray"
 )
 
-// Callbacks wired by the application.
-type Callbacks struct {
-	OnOpen     func()
-	OnSettings func()
-	OnQuit     func()
-}
-
 // Controller manages the system tray icon and menu.
 type Controller struct {
 	icon []byte
 	cb   Callbacks
 
-	mu          sync.Mutex
-	statusItem  *systray.MenuItem
-	started     bool
+	mu         sync.Mutex
+	statusItem *systray.MenuItem
+	started    bool
 }
 
-// New creates a tray controller. icon should be PNG bytes (Linux/macOS) or ICO (Windows).
+// New creates a tray controller. icon should be PNG bytes (Linux) or ICO (Windows).
 func New(icon []byte, cb Callbacks) *Controller {
 	return &Controller{icon: icon, cb: cb}
 }

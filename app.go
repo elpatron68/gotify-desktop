@@ -12,6 +12,8 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/notify"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -51,6 +53,18 @@ func NewApp(trayIcon []byte) *App {
 		view:     "setup",
 		trayIcon: trayIcon,
 	}
+}
+
+// buildMenu creates the native application menu (needed on macOS where systray is disabled).
+func (a *App) buildMenu() *menu.Menu {
+	return menu.NewMenuFromItems(
+		menu.SubMenu("Gotify", menu.NewMenuFromItems(
+			menu.Text("Show Window", nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
+			menu.Text("Settings", nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
+			menu.Separator(),
+			menu.Text("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
+		)),
+	)
 }
 
 func (a *App) startup(ctx context.Context) {

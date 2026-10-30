@@ -56,9 +56,10 @@ jobs:
             platform: windows/amd64
             wails_tags: ""
             artifact: gotify-desktop.exe
-          - name: darwin-universal
+          # arm64-only: avoids long universal link; systray is stubbed on darwin (Wails conflict).
+          - name: darwin-arm64
             os: macos-latest
-            platform: darwin/universal
+            platform: darwin/arm64
             wails_tags: ""
             artifact: gotify-desktop.app
 
