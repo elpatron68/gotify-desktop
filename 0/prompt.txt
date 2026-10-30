@@ -1,0 +1,9 @@
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:753-765
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:10-15 ist bereits in ~/.bashrc
+
+---
+
+commit
