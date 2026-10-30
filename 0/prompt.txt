@@ -1,0 +1,21 @@
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:753-765
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:10-15 ist bereits in ~/.bashrc
+
+---
+
+commit
+
+---
+
+ja
+
+---
+
+können wir auch für windows und macos bauen?
+
+---
+
+okay, erstelle einen entsprechenden github workflow (ci/cd)
