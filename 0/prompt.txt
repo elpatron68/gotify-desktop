@@ -1,0 +1,49 @@
+Erstelle eine Destop App mit Go
+
+- Gotify Client als Desktop App
+- Notifications
+- Tray Icon
+- Gotify Management via Web-Interface
+- Kompatibel zu Windows, Linux, macOS
+
+---
+
+A)
+
+---
+
+B)
+
+---
+
+B)
+
+---
+
+1)
+
+---
+
+passt
+
+---
+
+passt alles
+
+---
+
+füge https://github.com/elpatron68/gotify-desktop.git als origin hinzu
+
+---
+
+origin wurde beraits hinzugefügt, haupt branch ist jetzt main
+
+---
+
+Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.
+
+To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.
+
+---
+
+ja
