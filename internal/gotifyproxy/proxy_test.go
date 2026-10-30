@@ -42,6 +42,32 @@ func TestInjectSessionBootstrapRewritesWebSocket(t *testing.T) {
 	if !strings.Contains(s, "gtfyc.test") {
 		t.Fatal("expected token")
 	}
+	if !strings.Contains(s, "gotify-login-key") {
+		t.Fatal("expected localStorage token key for Gotify ≤2.x")
+	}
+}
+
+func TestStartWSProxy(t *testing.T) {
+	p := &Proxy{}
+	url, err := p.StartWSProxy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.CloseWS()
+	if !strings.HasPrefix(url, "ws://127.0.0.1:") {
+		t.Fatalf("wsURL = %q", url)
+	}
+	if got := p.WSURL(); got != url {
+		t.Fatalf("WSURL = %q, want %q", got, url)
+	}
+	// Second start is idempotent.
+	url2, err := p.StartWSProxy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url2 != url {
+		t.Fatalf("second StartWSProxy = %q, want %q", url2, url)
+	}
 }
 
 func TestProxyInjectsAuthAndSessionCookie(t *testing.T) {

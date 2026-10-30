@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	windowsAppID    = "Gotify.Desktop"
-	powershellAppID = `{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe`
-	// Explorer's toast host is almost always allowed in Windows notification settings.
+	windowsAppID = "Gotify.Desktop"
+	// Explorer's toast host is almost always allowed to show banners.
 	explorerAppID = `Microsoft.Windows.Explorer`
+	powershellAppID = `{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe`
 )
 
 var (
@@ -39,16 +39,19 @@ func showPlatformToast(title, body string) error {
 		}
 	})
 
+	// Prefer hosts Windows already trusts for banners. Custom AUMIDs often report
+	// Setting=Enabled while producing no visible toast on unpackaged Win32 apps.
 	attempts := []struct {
 		name  string
 		appID string
 	}{
-		{"gotify-aumid", windowsAppID},
-		{"powershell-host", powershellAppID},
 		{"explorer-host", explorerAppID},
+		{"powershell-host", powershellAppID},
+		{"gotify-aumid", windowsAppID},
 	}
 
 	var errs []string
+	var anyOK bool
 	for _, a := range attempts {
 		applog.Printf("toast try method=%s appID=%s title=%q", a.name, a.appID, title)
 		if err := powershellToast(a.appID, title, body); err != nil {
@@ -56,10 +59,36 @@ func showPlatformToast(title, body string) error {
 			errs = append(errs, a.name+": "+err.Error())
 			continue
 		}
-		applog.Printf("toast Show() returned ok method=%s (if still invisible: check Windows Focus Assist / Settings→System→Notifications)", a.name)
+		applog.Printf("toast Show() returned ok method=%s", a.name)
+		anyOK = true
+		// Explorer/PowerShell hosts are the ones users actually see — stop there.
+		if a.name != "gotify-aumid" {
+			return nil
+		}
+	}
+
+	// Native go-toast as an extra channel (uses the registered AUMID + shortcut).
+	if err := goToastPush(title, body); err != nil {
+		applog.Printf("toast go-toast Push failed: %v", err)
+		errs = append(errs, "go-toast: "+err.Error())
+	} else {
+		applog.Printf("toast go-toast Push ok")
+		anyOK = true
+	}
+
+	if anyOK {
 		return nil
 	}
 	return fmt.Errorf("windows toast failed: %s", strings.Join(errs, "; "))
+}
+
+func goToastPush(title, body string) error {
+	n := toast.Notification{
+		AppID: windowsAppID,
+		Title: title,
+		Body:  body,
+	}
+	return n.Push()
 }
 
 func ensureWindowsToastApp() error {
@@ -109,7 +138,7 @@ $ErrorActionPreference = 'Stop'
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $xmlText = @'
-<toast><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual></toast>
+<toast><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual><audio src="ms-winsoundevent:Notification.Default"/></toast>
 '@
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($xmlText)
@@ -143,9 +172,11 @@ func ensureStartMenuShortcut(exe string) error {
 	}
 	dir := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs")
 	lnk := filepath.Join(dir, "Gotify Desktop.lnk")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	// Create the .lnk and stamp System.AppUserModel.ID so Windows associates
+	// toasts with this unpackaged app.
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
 $WshShell = New-Object -ComObject WScript.Shell
@@ -154,7 +185,44 @@ $Shortcut.TargetPath = %s
 $Shortcut.WorkingDirectory = %s
 $Shortcut.Description = 'Gotify Desktop'
 $Shortcut.Save()
-`, psQuote(lnk), psQuote(exe), psQuote(filepath.Dir(exe)))
+
+$sig = @'
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+public static class LnkAumid {
+  [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IPropertyStore {
+    void GetCount(out uint cProps);
+    void GetAt(uint iProp, out PROPERTYKEY pkey);
+    void GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
+    void SetValue(ref PROPERTYKEY key, ref PROPVARIANT pv);
+    void Commit();
+  }
+  [StructLayout(LayoutKind.Sequential, Pack=4)]
+  struct PROPERTYKEY { public Guid fmtid; public uint pid; }
+  [StructLayout(LayoutKind.Sequential)]
+  struct PROPVARIANT {
+    public ushort vt; public ushort w1,w2,w3; public IntPtr p; public int p2;
+  }
+  [DllImport("shell32.dll", CharSet=CharSet.Unicode, PreserveSig=false)]
+  static extern void SHGetPropertyStoreFromParsingName(string pszPath, IntPtr pbc, uint flags, [MarshalAs(UnmanagedType.LPStruct)] Guid riid, out IPropertyStore ppv);
+  public static void Set(string lnk, string aumid) {
+    IPropertyStore store;
+    SHGetPropertyStoreFromParsingName(lnk, IntPtr.Zero, 2 /*GPS_READWRITE*/, typeof(IPropertyStore).GUID, out store);
+    var key = new PROPERTYKEY{ fmtid=new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid=5 };
+    var pv = new PROPVARIANT();
+    pv.vt = 31; // VT_LPWSTR
+    pv.p = Marshal.StringToCoTaskMemUni(aumid);
+    store.SetValue(ref key, ref pv);
+    store.Commit();
+    Marshal.FreeCoTaskMem(pv.p);
+  }
+}
+'@
+Add-Type -TypeDefinition $sig -ErrorAction SilentlyContinue
+[LnkAumid]::Set(%s, %s)
+`, psQuote(lnk), psQuote(exe), psQuote(filepath.Dir(exe)), psQuote(lnk), psQuote(windowsAppID))
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()

@@ -16,6 +16,8 @@ export function IsConfigured():Promise<boolean>;
 
 export function OpenSettings():Promise<void>;
 
+export function ProxyMiddleware():Promise<any>;
+
 export function Quit():Promise<void>;
 
 export function ShowWindow():Promise<void>;

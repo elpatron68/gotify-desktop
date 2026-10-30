@@ -30,6 +30,10 @@ export function OpenSettings() {
   return window['go']['main']['App']['OpenSettings']();
 }
 
+export function ProxyMiddleware() {
+  return window['go']['main']['App']['ProxyMiddleware']();
+}
+
 export function Quit() {
   return window['go']['main']['App']['Quit']();
 }

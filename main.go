@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -16,6 +17,12 @@ var assets embed.FS
 var appIcon []byte
 
 func main() {
+	// Allow the embedded UI (wails.localhost) to open ws://127.0.0.1 for the
+	// local Gotify stream bridge. Without this, WebView2 Local Network Access
+	// blocks the socket and the iframe never receives live messages.
+	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+		"--disable-features=BlockInsecurePrivateNetworkRequests,LocalNetworkAccessChecks")
+
 	// Prefer the dedicated tray icon; fall back to the app icon if missing.
 	icon := trayIcon
 	if len(icon) == 0 {
@@ -37,6 +44,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 24, B: 32, A: 1},
 		OnStartup:        app.startup,
+		OnDomReady:       app.domReady,
 		OnShutdown:       app.shutdown,
 		OnBeforeClose:    app.beforeClose,
 		Bind: []interface{}{

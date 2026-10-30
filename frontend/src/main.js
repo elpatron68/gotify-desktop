@@ -14,6 +14,7 @@ const usernameInput = document.getElementById('username');
 
 /** @type {'setup'|'gotify'|null} */
 let currentView = null;
+let bootstrapped = false;
 
 function showError(msg) {
   if (!msg) {
@@ -27,9 +28,6 @@ function showError(msg) {
 
 function applySession(token) {
   if (!token) return;
-  // Gotify v3 uses an HttpOnly session cookie set by the local proxy.
-  // Keep a SameSite=Strict cookie on the shell origin as a non-HttpOnly fallback
-  // for same-origin iframe requests before the first proxied response arrives.
   try {
     document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
   } catch (_) {
@@ -41,7 +39,6 @@ function showSetup(status) {
   currentView = 'setup';
   setupView.hidden = false;
   gotifyView.hidden = true;
-  // Prefill like gotify/android Settings (url + username; never password).
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
   }
@@ -100,16 +97,48 @@ function updateStatusLine(status) {
 
 async function applyStatus(status) {
   if (!status) return;
+  // Once we know a saved session exists, never fall back to the Connect form
+  // from a late/racy status tick — Settings is the only way back.
   if (status.view === 'gotify' && status.configured) {
-    // Only mount Gotify once; later status events only refresh the status line.
+    bootstrapped = true;
     await showGotify(null, {forceReload: false});
-  } else if (currentView !== 'setup') {
-    showSetup(status);
+  } else if (status.configured && bootstrapped && currentView === 'gotify') {
+    updateStatusLine(status);
+    return;
+  } else if (!status.configured || status.view === 'setup') {
+    if (currentView !== 'setup') {
+      showSetup(status);
+    } else {
+      updateStatusLine(status);
+      return;
+    }
   } else {
     updateStatusLine(status);
     return;
   }
   updateStatusLine(status);
+}
+
+function postToGotify(msg) {
+  try {
+    frame?.contentWindow?.postMessage(msg, '*');
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+async function shellNotify(title, body) {
+  try {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    if (Notification.permission === 'granted') {
+      new Notification(title || 'Gotify', {body: body || '', silent: false});
+    }
+  } catch (err) {
+    console.warn('shell Notification failed', err);
+  }
 }
 
 form.addEventListener('submit', async (event) => {
@@ -123,6 +152,7 @@ form.addEventListener('submit', async (event) => {
   try {
     await Connect(serverUrl, username, password);
     document.getElementById('password').value = '';
+    bootstrapped = true;
     await showGotify(null, {forceReload: true});
   } catch (err) {
     showError(String(err));
@@ -136,15 +166,47 @@ EventsOn('status', (status) => {
   applyStatus(status).catch(console.error);
 });
 EventsOn('show-setup', () => {
+  bootstrapped = false;
   GetStatus().then(showSetup).catch(console.error);
 });
 EventsOn('show-gotify', (payload) => {
+  bootstrapped = true;
   showGotify(payload, {forceReload: true}).catch(console.error);
 });
+EventsOn('gotify-message', (payload) => {
+  postToGotify({type: 'gotify-desktop-refresh'});
+  shellNotify(payload?.title, payload?.body).catch(console.warn);
+});
 
-GetStatus()
-  .then((status) => applyStatus(status))
-  .catch((err) => {
+async function bootstrap() {
+  // Hide the Connect form until we know whether a session already exists.
+  setupView.hidden = true;
+  for (let i = 0; i < 8; i++) {
+    try {
+      const status = await GetStatus();
+      if (status?.configured && status.view === 'gotify') {
+        bootstrapped = true;
+        await showGotify(null, {forceReload: true});
+        updateStatusLine(status);
+        return;
+      }
+      if (status && !status.configured) {
+        showSetup(status);
+        return;
+      }
+      // Startup still loading config — wait briefly.
+      await new Promise((r) => setTimeout(r, 100));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  try {
+    const status = await GetStatus();
+    await applyStatus(status);
+  } catch (err) {
     console.error(err);
     showSetup(null);
-  });
+  }
+}
+
+bootstrap().catch(console.error);

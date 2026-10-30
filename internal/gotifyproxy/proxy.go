@@ -3,6 +3,7 @@ package gotifyproxy
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -23,11 +24,15 @@ const sessionCookieMaxAge = 7 * 24 * 60 * 60
 //
 // Important: Wails' AssetServer returns 501 for WebSocket upgrades, so the
 // Gotify UI must not open ws://<wails>/g/stream. We inject a bootstrap that
-// rewrites WebSocket connections to the real upstream wss://host/stream?token=.
+// rewrites WebSocket connections to a local ws://127.0.0.1 bridge (see
+// StartWSProxy), which dials the real upstream wss://host/stream?token=.
 type Proxy struct {
 	mu     sync.RWMutex
 	target *url.URL
 	token  string
+
+	wsURL string
+	wsLn  net.Listener
 }
 
 // Update sets the upstream Gotify base URL and client token.
@@ -151,6 +156,7 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 		req.Header.Del("Referer")
 	}
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		applog.Printf("proxy upstream %s %s → %d", r.Method, path, resp.StatusCode)
 		resp.Header.Del("X-Frame-Options")
 		resp.Header.Del("Content-Security-Policy")
 		resp.Header.Del("Set-Cookie")
@@ -180,7 +186,14 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			wsBase := websocketBase(&target)
+			// Prefer local WS bridge (same-machine ws://). Direct wss:// to the
+			// public Gotify host is often blocked from the Wails WebView origin.
+			wsBase := p.WSURL()
+			if wsBase == "" {
+				wsBase = websocketBase(&target)
+			} else {
+				wsBase = strings.TrimRight(wsBase, "/") + "/"
+			}
 			body = injectSessionBootstrap(body, token, wsBase)
 			resp.Header.Del("Content-Encoding")
 			resp.Body = io.NopCloser(bytes.NewReader(body))
@@ -216,6 +229,8 @@ func setSessionCookie(h http.Header, token string) {
 		Path:     "/",
 		MaxAge:   sessionCookieMaxAge,
 		HttpOnly: true,
+		// Lax (not Strict): the shell and iframe share the Wails origin; Strict
+		// has caused the SPA to miss the session cookie on first paint.
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(sessionCookieMaxAge * time.Second),
 	}
@@ -228,6 +243,8 @@ func injectSessionBootstrap(body []byte, token, wsBase string) []byte {
 	script := `<script>(function(){
 var t=` + strconv.Quote(token) + `, wsBase=` + strconv.Quote(wsBase) + `;
 try{document.cookie='gotify-client-token='+encodeURIComponent(t)+'; path=/; max-age=604800; SameSite=Lax';}catch(e){}
+// Gotify ≤2.x reads the client token from localStorage; v3 uses the cookie.
+try{localStorage.setItem('gotify-login-key', t);}catch(e){}
 function withToken(url){
   try{
     if(typeof url!=='string') return url;
@@ -273,7 +290,23 @@ function WS(url,protocols){
 WS.prototype=Orig.prototype;
 WS.CONNECTING=Orig.CONNECTING;WS.OPEN=Orig.OPEN;WS.CLOSING=Orig.CLOSING;WS.CLOSED=Orig.CLOSED;
 window.WebSocket=WS;
-try{console.info('[gotify-desktop] session bootstrap ok');}catch(e){}
+try{console.info('[gotify-desktop] session bootstrap ok wsBase='+wsBase);}catch(e){}
+// Keep the UI off the login route if a desktop token is present.
+setInterval(function(){
+  try{
+    if(location.hash && location.hash.indexOf('login')!==-1){
+      location.hash='#/';
+    }
+  }catch(e){}
+}, 1000);
+window.addEventListener('message', function(ev){
+  try{
+    if(ev.data && ev.data.type==='gotify-desktop-refresh'){
+      location.hash='#/';
+      location.reload();
+    }
+  }catch(e){}
+});
 })();</script>`
 
 	inject := []byte(script)

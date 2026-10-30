@@ -101,6 +101,9 @@ func (a *App) startup(ctx context.Context) {
 			cfg.Configured(), cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
 	}
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
+	if _, err := a.proxy.StartWSProxy(); err != nil {
+		applog.Printf("ws proxy start failed: %v", err)
+	}
 
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:     a.ShowWindow,
@@ -122,6 +125,26 @@ func (a *App) startup(ctx context.Context) {
 	a.emitStatus()
 }
 
+// domReady re-emits session state after the frontend has subscribed to events.
+// OnStartup's emitStatus often races ahead of EventsOn and left users on the
+// Connect form despite a saved client token.
+func (a *App) domReady(ctx context.Context) {
+	a.ctx = ctx
+	a.emitStatus()
+	a.mu.Lock()
+	configured := a.cfg.Configured()
+	view := a.view
+	token := a.cfg.ClientToken
+	a.mu.Unlock()
+	if configured && view == "gotify" {
+		applog.Printf("domReady: restoring gotify view")
+		runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
+			"token":  token,
+			"uiPath": gotifyproxy.UIPrefix + "/",
+		})
+	}
+}
+
 func (a *App) shutdown(ctx context.Context) {
 	a.stopStream()
 	if a.tray != nil {
@@ -129,6 +152,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.notify != nil {
 		a.notify.Close()
+	}
+	if a.proxy != nil {
+		a.proxy.CloseWS()
 	}
 	applog.Close()
 }
@@ -213,6 +239,9 @@ func (a *App) Connect(serverURL, username, password string) error {
 	}
 	applog.Printf("connect saved server=%q user=%q token=%s", cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
 	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
+	if _, err := a.proxy.StartWSProxy(); err != nil {
+		applog.Printf("ws proxy start failed: %v", err)
+	}
 
 	a.stopStream()
 	a.startStream()
@@ -333,20 +362,23 @@ func (a *App) handleMessage(msg stream.Message) {
 		id = fmt.Sprintf("msg-%d", msg.AppID)
 	}
 	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
+	// Ask the iframe to refresh its message list (covers WS bridge lag) and
+	// ask the shell to show a browser/OS notification as a second channel.
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "gotify-message", map[string]string{
+			"id":    id,
+			"title": msg.Title,
+			"body":  msg.Message,
+		})
+	}
 	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
 		a.setError("notification: " + err.Error())
 		if a.tray != nil {
 			a.tray.SetStatus("Status: notify error")
 		}
 		a.emitStatus()
-	} else {
-		// Visible fallback when Windows swallows toasts: surface in tray + bring window forward.
-		if a.tray != nil {
-			a.tray.SetStatus("Msg: " + truncateRunes(msg.Title, 40))
-		}
-		if a.ctx != nil {
-			runtime.WindowShow(a.ctx)
-		}
+	} else if a.tray != nil {
+		a.tray.SetStatus("Msg: " + truncateRunes(msg.Title, 40))
 	}
 
 	if msg.ID > 0 {
