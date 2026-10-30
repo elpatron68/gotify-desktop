@@ -14,9 +14,9 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 
 | Platform | Prerequisites |
 |----------|----------------|
-| Linux | Go 1.25+, Node.js 18+, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev` or `libwebkit2gtk-4.1-dev`, `gcc`, `pkg-config` |
-| Windows | Go 1.25+, Node.js 18+, WebView2 runtime |
-| macOS | Go 1.25+, Node.js 18+, Xcode Command Line Tools |
+| Linux | Go 1.25+, Node.js 24+, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev` or `libwebkit2gtk-4.1-dev`, `gcc`, `pkg-config` |
+| Windows | Go 1.25+, Node.js 24+, WebView2 runtime |
+| macOS | Go 1.25+, Node.js 24+, Xcode Command Line Tools |
 
 Ubuntu 24.04 example (`libwebkit2gtk-4.1`):
 
