@@ -5,3 +5,4 @@ frontend/node_modules
 *.exe
 *.syso
 .DS_Store
+frontend/package.json.md5

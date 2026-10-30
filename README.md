@@ -18,13 +18,13 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 | Windows | Go 1.25+, Node.js 18+, WebView2 runtime |
 | macOS | Go 1.25+, Node.js 18+, Xcode Command Line Tools |
 
-Ubuntu example:
+Ubuntu 24.04 example (`libwebkit2gtk-4.1`):
 
 ```bash
 sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-Install the Wails CLI:
+Install the Wails CLI (ensure `$HOME/go/bin` is on your `PATH`):
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -37,11 +37,19 @@ cd frontend && npm install && cd ..
 wails dev
 ```
 
+On Ubuntu 24.04 with WebKit 4.1, `wails.json` sets `build:tags` to `webkit2_41`. If needed explicitly:
+
+```bash
+wails dev -tags webkit2_41
+```
+
 ## Build
 
 ```bash
 wails build
 ```
+
+Binary: `build/bin/gotify-desktop`.
 
 Binary output: `build/bin/gotify-desktop` (extension varies by OS).
 
