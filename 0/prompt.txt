@@ -1,0 +1,65 @@
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:753-765
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:10-15 ist bereits in ~/.bashrc
+
+---
+
+commit
+
+---
+
+ja
+
+---
+
+können wir auch für windows und macos bauen?
+
+---
+
+okay, erstelle einen entsprechenden github workflow (ci/cd)
+
+---
+
+okay, setzte das tag und beobachte den lauf mit gh
+
+---
+
+"Test
+Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24"
+
+können wir nicht direkt zu node 24 wechseln?
+
+---
+
+Nach Login Öffnet sich Gotify Web app, dort muss man sich erneut einloggen.
+
+---
+
+Wir brauchen auch noch ein Tray Icon
+
+---
+
+Unter Linux ggf. nötig: libayatana-appindicator3-1 (bzw. AppIndicator-Unterstützung im Desktop).
+
+erläutere das ausführlich in @README.md
+
+---
+
+commit, push, neues tag, push tag
+
+---
+
+login okay, testnachricht gepusht, keine notification.
+
+ich teste gegen https://gotify.elpatron.me 
+wenn es hilft, kann ich ein temporäres token zum testen geben
+
+---
+
+okay, jetzt wird es umständlich. wir sind unter wsl, ich teste unter windows mit den build aus dem deployment
+
+---
+
+ja, mach das
