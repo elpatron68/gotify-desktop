@@ -1,0 +1,102 @@
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:753-765
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:10-15 ist bereits in ~/.bashrc
+
+---
+
+commit
+
+---
+
+ja
+
+---
+
+können wir auch für windows und macos bauen?
+
+---
+
+okay, erstelle einen entsprechenden github workflow (ci/cd)
+
+---
+
+okay, setzte das tag und beobachte den lauf mit gh
+
+---
+
+"Test
+Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24"
+
+können wir nicht direkt zu node 24 wechseln?
+
+---
+
+Nach Login Öffnet sich Gotify Web app, dort muss man sich erneut einloggen.
+
+---
+
+Wir brauchen auch noch ein Tray Icon
+
+---
+
+Unter Linux ggf. nötig: libayatana-appindicator3-1 (bzw. AppIndicator-Unterstützung im Desktop).
+
+erläutere das ausführlich in @README.md
+
+---
+
+commit, push, neues tag, push tag
+
+---
+
+login okay, testnachricht gepusht, keine notification.
+
+ich teste gegen https://gotify.elpatron.me 
+wenn es hilft, kann ich ein temporäres token zum testen geben
+
+---
+
+okay, jetzt wird es umständlich. wir sind unter wsl, ich teste unter windows mit den build aus dem deployment
+
+---
+
+ja, mach das
+
+---
+
+1. Login blieb nicht persistent, ich musste mich neu einloggen
+2. Connect -> "Stream connected"
+3. Tray Icon: "Status: connected"
+4. Push Message: Keine Notification (kein Toast, keine Benutzer Interaktion)
+
+Log:
+
+2026/10/30 15:05:59 wails notifications ready
+2026/10/30 15:07:41 wails notification sent id=53108 title="Test"
+
+---
+
+Verify these issues exist and fix them:
+
+Bug 1:
+The file opened on line 140 is never closed. The file handle is passed to `log.New()` on line 144, but there's no mechanism to close it when the logger is replaced or the application shuts down. This will leak file descriptors over the application's lifetime.
+
+---
+
+commit
+
+---
+
+Wieder: 
+- Erneutes Einloggen (nervig!)
+- Keine Notification
+
+Log
+2026/10/30 15:19:58 wails notifications ready (GOOS=windows)
+2026/10/30 15:20:45 windows toast sent id=53109 title="Test2"
+
+---
+
+ja, mach das
