@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M66GFDQ8YVP7R357WKF1T4ST",
+  "session_id": "e95af128-3aa8-4cbf-8606-122981ce9a7b",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-30T13:37:36.709399816Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "app.go",
+    "build/appicon.png",
+    "build/trayicon.png",
+    "build/windows/icon.ico",
+    "build/windows/trayicon.ico",
+    "frontend/index.html",
+    "frontend/src/main.js",
+    "frontend/wailsjs/go/main/App.d.ts",
+    "frontend/wailsjs/go/main/App.js",
+    "icon_darwin.go",
+    "icon_linux.go",
+    "icon_windows.go",
+    "internal/gotifyproxy/proxy.go",
+    "internal/gotifyproxy/proxy_test.go",
+    "internal/tray/tray_systray.go",
+    "main.go"
+  ],
+  "agent": "Cursor",
+  "model": "default",
+  "turn_id": "de0b590521d3",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 19693,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3161728,
+    "output_tokens": 7845,
+    "api_call_count": 2
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 5,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 21
+  }
+}
