@@ -116,6 +116,9 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.tray != nil {
 		a.tray.Stop()
 	}
+	if a.notify != nil {
+		a.notify.Close()
+	}
 }
 
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {

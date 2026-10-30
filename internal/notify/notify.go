@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ type Notifier struct {
 	initErr error
 	lastErr error
 	logger  *log.Logger
+	logFile io.Closer
 }
 
 // Init initializes the platform notification system. Call from OnStartup.
@@ -139,6 +141,19 @@ func (n *Notifier) setLastErr(err error) {
 	n.mu.Unlock()
 }
 
+// Close releases the notify.log file handle. Safe to call multiple times.
+func (n *Notifier) Close() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.logFile != nil {
+		_ = n.logFile.Close()
+		n.logFile = nil
+	}
+	// Keep a stderr logger so late logf calls after Close stay safe.
+	n.logger = log.New(os.Stderr, "gotify-desktop/notify: ", log.LstdFlags|log.Lmsgprefix)
+}
+
+// ensureLogger initializes the file logger. Caller must hold n.mu.
 func (n *Notifier) ensureLogger() {
 	if n.logger != nil {
 		return
@@ -156,10 +171,14 @@ func (n *Notifier) ensureLogger() {
 	if err != nil {
 		return
 	}
+	n.logFile = f
 	n.logger = log.New(f, "", log.LstdFlags)
 }
 
 func (n *Notifier) logf(format string, args ...any) {
+	// logger is set under mu and only swapped in Close; reading the pointer
+	// without the lock is safe. Avoid locking here: Init calls logf while
+	// already holding n.mu.
 	if n.logger != nil {
 		n.logger.Printf(format, args...)
 	}
