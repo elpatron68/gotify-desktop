@@ -4,9 +4,13 @@ import {main} from '../models';
 
 export function Connect(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function GetClientToken():Promise<string>;
+
 export function GetServerURL():Promise<string>;
 
 export function GetStatus():Promise<main.AppStatus>;
+
+export function GetUIPath():Promise<string>;
 
 export function IsConfigured():Promise<boolean>;
 

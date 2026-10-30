@@ -51,11 +51,13 @@ func (c *Controller) SetStatus(text string) {
 }
 
 func (c *Controller) onReady() {
-	systray.SetTitle("Gotify")
 	systray.SetTooltip("Gotify Desktop")
 	if len(c.icon) > 0 {
+		systray.SetTemplateIcon(c.icon, c.icon)
 		systray.SetIcon(c.icon)
 	}
+	// Title text next to the icon is mainly useful on macOS; keep empty on Linux/Windows.
+	systray.SetTitle("")
 
 	status := systray.AddMenuItem("Status: starting…", "Connection status")
 	status.Disable()
@@ -68,7 +70,6 @@ func (c *Controller) onReady() {
 	settings := systray.AddMenuItem("Settings", "Open connection settings")
 	systray.AddSeparator()
 	quit := systray.AddMenuItem("Quit", "Exit Gotify Desktop")
-
 	go func() {
 		for {
 			select {

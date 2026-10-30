@@ -16,7 +16,12 @@ var assets embed.FS
 var appIcon []byte
 
 func main() {
-	app := NewApp(appIcon)
+	// Prefer the dedicated tray icon; fall back to the app icon if missing.
+	icon := trayIcon
+	if len(icon) == 0 {
+		icon = appIcon
+	}
+	app := NewApp(icon)
 
 	err := wails.Run(&options.App{
 		Title:             "Gotify Desktop",
@@ -27,7 +32,8 @@ func main() {
 		HideWindowOnClose: true,
 		Menu:              app.buildMenu(),
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Middleware: app.ProxyMiddleware(),
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 24, B: 32, A: 1},
 		OnStartup:        app.startup,

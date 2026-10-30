@@ -6,12 +6,20 @@ export function Connect(arg1, arg2, arg3) {
   return window['go']['main']['App']['Connect'](arg1, arg2, arg3);
 }
 
+export function GetClientToken() {
+  return window['go']['main']['App']['GetClientToken']();
+}
+
 export function GetServerURL() {
   return window['go']['main']['App']['GetServerURL']();
 }
 
 export function GetStatus() {
   return window['go']['main']['App']['GetStatus']();
+}
+
+export function GetUIPath() {
+  return window['go']['main']['App']['GetUIPath']();
 }
 
 export function IsConfigured() {

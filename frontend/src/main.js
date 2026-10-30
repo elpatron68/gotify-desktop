@@ -1,5 +1,5 @@
 import './style.css';
-import {Connect, GetStatus, GetServerURL} from '../wailsjs/go/main/App';
+import {Connect, GetStatus, GetClientToken, GetUIPath} from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 
 const setupView = document.getElementById('setup-view');
@@ -21,19 +21,45 @@ function showError(msg) {
   errorEl.textContent = msg;
 }
 
+function applySession(token) {
+  if (!token) return;
+  try {
+    // Gotify < v3 web UI
+    localStorage.setItem('gotify-login-key', token);
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    // Gotify v3 cookie session (non-HttpOnly mirror for same-origin proxy)
+    document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 function showSetup(status) {
   setupView.hidden = false;
   gotifyView.hidden = true;
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
   }
+  // Unload remote UI while editing settings.
+  frame.src = 'about:blank';
   updateStatusLine(status);
 }
 
-function showGotify(url) {
-  if (url) {
-    frame.src = url;
+async function showGotify(payload) {
+  let token = payload?.token;
+  let uiPath = payload?.uiPath;
+  if (!token) {
+    token = await GetClientToken();
   }
+  if (!uiPath) {
+    uiPath = await GetUIPath();
+  }
+  applySession(token);
+  // Cache-bust so tryAuthenticate runs after localStorage/cookie are set.
+  frame.src = `${uiPath}${uiPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
   setupView.hidden = true;
   gotifyView.hidden = false;
 }
@@ -55,10 +81,10 @@ function updateStatusLine(status) {
   statusLine.textContent = parts.join(' · ');
 }
 
-function applyStatus(status) {
+async function applyStatus(status) {
   if (!status) return;
-  if (status.view === 'gotify' && status.serverUrl) {
-    showGotify(status.serverUrl);
+  if (status.view === 'gotify' && status.configured) {
+    await showGotify(null);
   } else {
     showSetup(status);
   }
@@ -76,8 +102,7 @@ form.addEventListener('submit', async (event) => {
   try {
     await Connect(serverUrl, username, password);
     document.getElementById('password').value = '';
-    const url = await GetServerURL();
-    showGotify(url);
+    await showGotify(null);
   } catch (err) {
     showError(String(err));
   } finally {
@@ -86,16 +111,18 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-EventsOn('status', applyStatus);
+EventsOn('status', (status) => {
+  applyStatus(status).catch(console.error);
+});
 EventsOn('show-setup', () => {
   GetStatus().then(showSetup).catch(console.error);
 });
-EventsOn('show-gotify', (url) => {
-  showGotify(url);
+EventsOn('show-gotify', (payload) => {
+  showGotify(payload).catch(console.error);
 });
 
 GetStatus()
-  .then(applyStatus)
+  .then((status) => applyStatus(status))
   .catch((err) => {
     console.error(err);
     showSetup(null);

@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/elpatron68/gotify-desktop/internal/auth"
 	"github.com/elpatron68/gotify-desktop/internal/config"
+	"github.com/elpatron68/gotify-desktop/internal/gotifyproxy"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
@@ -42,6 +44,7 @@ type App struct {
 	stream  *stream.Client
 	notify  *notify.Notifier
 	tray    *tray.Controller
+	proxy   *gotifyproxy.Proxy
 	trayIcon []byte
 }
 
@@ -50,9 +53,15 @@ func NewApp(trayIcon []byte) *App {
 	return &App{
 		auth:     auth.New(),
 		notify:   &notify.Notifier{},
+		proxy:    &gotifyproxy.Proxy{},
 		view:     "setup",
 		trayIcon: trayIcon,
 	}
+}
+
+// ProxyMiddleware exposes the Gotify reverse-proxy for the Wails asset server.
+func (a *App) ProxyMiddleware() func(http.Handler) http.Handler {
+	return a.proxy.Middleware
 }
 
 // buildMenu creates the native application menu (needed on macOS where systray is disabled).
@@ -79,6 +88,7 @@ func (a *App) startup(ctx context.Context) {
 		a.cfg = cfg
 		a.mu.Unlock()
 	}
+	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
 
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:     a.ShowWindow,
@@ -137,6 +147,18 @@ func (a *App) GetServerURL() string {
 	return a.cfg.ServerURL
 }
 
+// GetClientToken returns the Gotify client token used for stream + embedded UI auth.
+func (a *App) GetClientToken() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cfg.ClientToken
+}
+
+// GetUIPath returns the local reverse-proxy path for the embedded Gotify UI.
+func (a *App) GetUIPath() string {
+	return gotifyproxy.UIPrefix + "/"
+}
+
 // IsConfigured reports whether a client token exists.
 func (a *App) IsConfigured() bool {
 	a.mu.Lock()
@@ -166,11 +188,16 @@ func (a *App) Connect(serverURL, username, password string) error {
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
+	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
 
 	a.stopStream()
 	a.startStream()
 	a.emitStatus()
-	runtime.EventsEmit(a.ctx, "show-gotify", normalized)
+	runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
+		"serverUrl": cfg.ServerURL,
+		"token":     cfg.ClientToken,
+		"uiPath":    gotifyproxy.UIPrefix + "/",
+	})
 	return nil
 }
 
