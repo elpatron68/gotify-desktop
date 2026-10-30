@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Gotify Desktop</title>
+</head>
+<body>
+<div id="app">
+    <section id="setup-view" class="view">
+        <div class="setup-card">
+            <h1>Gotify Desktop</h1>
+            <p class="lede">Connect to your Gotify server. A client token is created automatically; your password is not stored.</p>
+            <form id="setup-form">
+                <label>
+                    Server URL
+                    <input id="server-url" name="serverUrl" type="url" placeholder="https://gotify.example.com" required autocomplete="url"/>
+                </label>
+                <label>
+                    Username
+                    <input id="username" name="username" type="text" required autocomplete="username"/>
+                </label>
+                <label>
+                    Password
+                    <input id="password" name="password" type="password" required autocomplete="current-password"/>
+                </label>
+                <p id="error" class="error" hidden></p>
+                <button id="connect-btn" type="submit">Connect</button>
+            </form>
+            <p id="status-line" class="status"></p>
+        </div>
+    </section>
+    <section id="gotify-view" class="view" hidden>
+        <iframe id="gotify-frame" title="Gotify" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
+    </section>
+</div>
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>

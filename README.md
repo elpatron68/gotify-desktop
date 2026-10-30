@@ -1,0 +1,68 @@
+# Gotify Desktop
+
+Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and Go.
+
+## Features
+
+- Connect with Gotify username/password; the app creates a **client token** (password is not stored)
+- Native desktop **notifications** via Gotify WebSocket `/stream`
+- **System tray** with open / settings / quit
+- Window close minimizes to tray (quit only from tray)
+- Embedded Gotify **web UI** (management) in an in-app iframe
+
+## Requirements
+
+| Platform | Prerequisites |
+|----------|----------------|
+| Linux | Go 1.25+, Node.js 18+, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev` or `libwebkit2gtk-4.1-dev`, `gcc`, `pkg-config` |
+| Windows | Go 1.25+, Node.js 18+, WebView2 runtime |
+| macOS | Go 1.25+, Node.js 18+, Xcode Command Line Tools |
+
+Ubuntu example:
+
+```bash
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+Install the Wails CLI:
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+## Develop
+
+```bash
+cd frontend && npm install && cd ..
+wails dev
+```
+
+## Build
+
+```bash
+wails build
+```
+
+Binary output: `build/bin/gotify-desktop` (extension varies by OS).
+
+Cross-compile examples (host toolchains / Docker may be required):
+
+```bash
+wails build -platform windows/amd64
+wails build -platform darwin/universal
+wails build -platform linux/amd64
+```
+
+## Configuration
+
+Settings are stored under the user config directory:
+
+- Linux: `~/.config/gotify-desktop/config.json`
+- macOS: `~/Library/Application Support/gotify-desktop/config.json`
+- Windows: `%AppData%\gotify-desktop\config.json`
+
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
