@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.25.x"
+  NODE_VERSION: "20"
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - name: Run unit tests
+        run: go test ./...
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            os: ubuntu-24.04
+            platform: linux/amd64
+            wails_tags: webkit2_41
+            artifact: gotify-desktop
+          - name: windows-amd64
+            os: windows-latest
+            platform: windows/amd64
+            wails_tags: ""
+            artifact: gotify-desktop.exe
+          - name: darwin-universal
+            os: macos-latest
+            platform: darwin/universal
+            wails_tags: ""
+            artifact: gotify-desktop.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+
+      - name: Drop Linux-only build tags on Windows/macOS
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("wails.json")
+          data = json.loads(path.read_text())
+          data.pop("build:tags", None)
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: wails build -platform "${{ matrix.platform }}" -clean -tags "${{ matrix.wails_tags }}"
+
+      - name: Build (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: wails build -platform "${{ matrix.platform }}" -clean
+
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        working-directory: build/bin
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent gotify-desktop.app \
+            "gotify-desktop-${{ matrix.name }}.zip"
+
+      - name: Prepare Linux artifact
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}"
+          chmod +x "dist/gotify-desktop-${{ matrix.name }}"
+
+      - name: Prepare Windows artifact
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}.exe"
+
+      - name: Prepare macOS artifact
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          mv "build/bin/gotify-desktop-${{ matrix.name }}.zip" "dist/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gotify-desktop-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: gotify-desktop-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -61,6 +61,21 @@ wails build -platform darwin/universal
 wails build -platform linux/amd64
 ```
 
+## CI/CD
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main`:
+
+1. Unit tests
+2. Native builds for **Linux**, **Windows**, and **macOS** (universal)
+3. Artifacts uploaded for download from the Actions run
+
+Pushing a version tag creates a GitHub Release with the binaries:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Configuration
 
 Settings are stored under the user config directory:
