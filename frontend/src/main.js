@@ -26,13 +26,11 @@ function showError(msg) {
 
 function applySession(token) {
   if (!token) return;
+  // Gotify v3 uses an HttpOnly session cookie set by the local proxy.
+  // Keep a SameSite=Strict cookie on the shell origin as a non-HttpOnly fallback
+  // for same-origin iframe requests before the first proxied response arrives.
   try {
-    localStorage.setItem('gotify-login-key', token);
-  } catch (_) {
-    /* ignore */
-  }
-  try {
-    document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+    document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Strict`;
   } catch (_) {
     /* ignore */
   }

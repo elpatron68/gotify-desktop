@@ -92,6 +92,9 @@ func (a *App) startup(ctx context.Context) {
 		a.mu.Unlock()
 	}
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
+	if _, err := a.proxy.StartLocal(); err != nil {
+		a.setError("local gotify ui: " + err.Error())
+	}
 
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:     a.ShowWindow,
@@ -118,6 +121,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.notify != nil {
 		a.notify.Close()
+	}
+	if a.proxy != nil {
+		_ = a.proxy.Close()
 	}
 }
 
@@ -163,8 +169,11 @@ func (a *App) GetClientToken() string {
 	return a.cfg.ClientToken
 }
 
-// GetUIPath returns the local reverse-proxy path for the embedded Gotify UI.
+// GetUIPath returns the loopback URL for the embedded Gotify UI.
 func (a *App) GetUIPath() string {
+	if u := a.proxy.LocalURL(); u != "" {
+		return u + "/"
+	}
 	return gotifyproxy.UIPrefix + "/"
 }
 
@@ -198,6 +207,9 @@ func (a *App) Connect(serverURL, username, password string) error {
 		return fmt.Errorf("save config: %w", err)
 	}
 	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
+	if _, err := a.proxy.StartLocal(); err != nil {
+		return fmt.Errorf("local gotify ui: %w", err)
+	}
 
 	a.stopStream()
 	a.startStream()
@@ -205,7 +217,7 @@ func (a *App) Connect(serverURL, username, password string) error {
 	runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
 		"serverUrl": cfg.ServerURL,
 		"token":     cfg.ClientToken,
-		"uiPath":    gotifyproxy.UIPrefix + "/",
+		"uiPath":    a.GetUIPath(),
 	})
 	return nil
 }

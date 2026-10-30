@@ -96,6 +96,8 @@ func (n *Notifier) Show(id, title, body string) error {
 	}
 
 	if runtime.GOOS == "windows" {
+		// Unpackaged Win32 apps need a registered AppUserModelID; Wails/WinRT
+		// and bare PowerShell AUMIDs often report success with no visible toast.
 		if err := showPlatformToast(title, body); err != nil {
 			n.setLastErr(err)
 			n.logf("windows toast failed id=%s: %v", id, err)

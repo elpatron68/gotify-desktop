@@ -4,14 +4,15 @@ go 1.25.0
 
 require (
 	fyne.io/systray v1.11.0
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 	github.com/gen2brain/beeep v0.11.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/wailsapp/wails/v2 v2.17.0
+	golang.org/x/sys v0.46.0
 )
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
-	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
@@ -42,6 +43,5 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
 )

@@ -3,54 +3,122 @@
 package notify
 
 import (
-	"encoding/xml"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
+	"unsafe"
+
+	toast "git.sr.ht/~jackmordaunt/go-toast/v2"
+	"golang.org/x/sys/windows"
 )
 
-// showPlatformToast shows a toast via PowerShell using the registered PowerShell
-// AppUserModelID. Unpackaged Win32 apps (like Wails builds) often get a silent
-// WinRT success without a visible toast unless a Start Menu shortcut+AUMID exists;
-// this path is the reliable fallback on Windows.
+const windowsAppID = "Gotify.Desktop"
+
+var (
+	windowsToastOnce sync.Once
+	windowsToastErr  error
+)
+
+// showPlatformToast registers an AppUserModelID (required for unpackaged Win32
+// toasts) and pushes a notification via go-toast / WinRT.
 //
-// See: https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/send-local-toast-other-apps
+// Using only the PowerShell host AUMID often returns success with no visible
+// toast when PowerShell notifications are disabled.
 func showPlatformToast(title, body string) error {
-	title = xmlEscape(title)
-	body = xmlEscape(body)
+	windowsToastOnce.Do(func() {
+		windowsToastErr = ensureWindowsToastApp()
+	})
+	if windowsToastErr != nil {
+		return windowsToastErr
+	}
+
+	n := toast.Notification{
+		AppID: windowsAppID,
+		Title: title,
+		Body:  body,
+		Audio: toast.Default,
+	}
+	if err := n.Push(); err != nil {
+		return fmt.Errorf("windows toast: %w", err)
+	}
+	return nil
+}
+
+func ensureWindowsToastApp() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("executable path: %w", err)
+	}
+	exe, err = filepath.Abs(exe)
+	if err != nil {
+		return fmt.Errorf("absolute executable path: %w", err)
+	}
+
+	if err := toast.SetAppData(toast.AppData{
+		AppID:         windowsAppID,
+		ActivationExe: exe,
+	}); err != nil {
+		return fmt.Errorf("register AppUserModelID: %w", err)
+	}
+	if err := setCurrentProcessAUMID(windowsAppID); err != nil {
+		return err
+	}
+	// Best-effort Start Menu shortcut so Action Center can attribute toasts.
+	_ = ensureStartMenuShortcut(exe)
+	return nil
+}
+
+func setCurrentProcessAUMID(appID string) error {
+	ptr, err := windows.UTF16PtrFromString(appID)
+	if err != nil {
+		return err
+	}
+	shell32 := windows.NewLazySystemDLL("shell32.dll")
+	proc := shell32.NewProc("SetCurrentProcessExplicitAppUserModelID")
+	hr, _, _ := proc.Call(uintptr(unsafe.Pointer(ptr)))
+	if hr != 0 {
+		return fmt.Errorf("SetCurrentProcessExplicitAppUserModelID: HRESULT 0x%X", hr)
+	}
+	return nil
+}
+
+func ensureStartMenuShortcut(exe string) error {
+	appData := os.Getenv("APPDATA")
+	if appData == "" {
+		return fmt.Errorf("APPDATA not set")
+	}
+	dir := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs")
+	lnk := filepath.Join(dir, "Gotify Desktop.lnk")
+	if st, err := os.Stat(lnk); err == nil && !st.IsDir() {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-$xmlText = @'
-<toast>
-  <visual>
-    <binding template="ToastGeneric">
-      <text>%s</text>
-      <text>%s</text>
-    </binding>
-  </visual>
-</toast>
-'@
-$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml($xmlText)
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast)
-`, title, body)
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut(%s)
+$Shortcut.TargetPath = %s
+$Shortcut.WorkingDirectory = %s
+$Shortcut.Description = 'Gotify Desktop'
+$Shortcut.Save()
+`, psQuote(lnk), psQuote(exe), psQuote(filepath.Dir(exe)))
 
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("powershell toast: %w (%s)", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
-func xmlEscape(s string) string {
-	var b strings.Builder
-	_ = xml.EscapeText(&b, []byte(s))
-	return b.String()
+func psQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
