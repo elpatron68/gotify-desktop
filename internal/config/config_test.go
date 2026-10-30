@@ -79,6 +79,7 @@ func TestSaveLoad(t *testing.T) {
 
 	cfg := Config{
 		ServerURL:   "https://gotify.example.com",
+		Username:    "admin",
 		ClientToken: "secret",
 		MinPriority: 2,
 	}
@@ -99,7 +100,7 @@ func TestSaveLoad(t *testing.T) {
 	if !loaded.Configured() {
 		t.Fatal("expected configured")
 	}
-	if loaded.ServerURL != cfg.ServerURL || loaded.ClientToken != cfg.ClientToken || loaded.MinPriority != cfg.MinPriority {
+	if loaded.ServerURL != cfg.ServerURL || loaded.Username != cfg.Username || loaded.ClientToken != cfg.ClientToken || loaded.MinPriority != cfg.MinPriority {
 		t.Fatalf("loaded %+v want %+v", loaded, cfg)
 	}
 }

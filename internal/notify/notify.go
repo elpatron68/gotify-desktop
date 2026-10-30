@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/elpatron68/gotify-desktop/internal/applog"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -56,6 +57,7 @@ func (n *Notifier) Init(ctx context.Context) error {
 	n.ready = true
 	n.initErr = nil
 	n.logf("wails notifications ready (GOOS=%s)", runtime.GOOS)
+	applog.Printf("notify init ready GOOS=%s", runtime.GOOS)
 	return nil
 }
 
@@ -104,7 +106,8 @@ func (n *Notifier) Show(id, title, body string) error {
 			return err
 		}
 		n.setLastErr(nil)
-		n.logf("windows toast sent id=%s title=%q", id, title)
+		n.logf("windows toast sent id=%s title=%q (also see desktop.log for method/Setting)", id, title)
+		applog.Printf("notify Show ok id=%s title=%q", id, title)
 		return nil
 	}
 

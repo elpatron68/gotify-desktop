@@ -36,6 +36,9 @@ func TestInjectSessionBootstrapRewritesWebSocket(t *testing.T) {
 	if !strings.Contains(s, "stream?token=") {
 		t.Fatal("expected tokenized stream URL")
 	}
+	if !strings.Contains(s, "X-Gotify-Key") {
+		t.Fatal("expected XHR/fetch token header injection")
+	}
 	if !strings.Contains(s, "gtfyc.test") {
 		t.Fatal("expected token")
 	}

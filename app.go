@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/elpatron68/gotify-desktop/internal/applog"
 	"github.com/elpatron68/gotify-desktop/internal/auth"
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/gotifyproxy"
@@ -23,6 +24,7 @@ type AppStatus struct {
 	Configured    bool   `json:"configured"`
 	Connected     bool   `json:"connected"`
 	ServerURL     string `json:"serverUrl"`
+	Username      string `json:"username"`
 	View          string `json:"view"` // "setup" | "gotify"
 	Error         string `json:"error"`
 	MinPriority   int    `json:"minPriority"`
@@ -81,15 +83,22 @@ func (a *App) buildMenu() *menu.Menu {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	applog.Init()
+	if p, err := config.Path(); err == nil {
+		applog.Printf("config path: %s", p)
+	}
 	_ = a.notify.Init(ctx)
 
 	cfg, err := config.Load()
 	if err != nil {
+		applog.Printf("config load error: %v", err)
 		a.setError(err.Error())
 	} else {
 		a.mu.Lock()
 		a.cfg = cfg
 		a.mu.Unlock()
+		applog.Printf("config loaded configured=%v server=%q user=%q token=%s",
+			cfg.Configured(), cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
 	}
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
 
@@ -105,8 +114,10 @@ func (a *App) startup(ctx context.Context) {
 		a.view = "gotify"
 		a.mu.Unlock()
 		a.startStream()
+		applog.Printf("startup: opening gotify view uiPath=%s", gotifyproxy.UIPrefix+"/")
 	} else {
 		a.tray.SetStatus("Status: not configured")
+		applog.Printf("startup: setup view (not configured)")
 	}
 	a.emitStatus()
 }
@@ -119,6 +130,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.notify != nil {
 		a.notify.Close()
 	}
+	applog.Close()
 }
 
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
@@ -140,6 +152,7 @@ func (a *App) GetStatus() AppStatus {
 		Configured:    a.cfg.Configured(),
 		Connected:     a.connected,
 		ServerURL:     a.cfg.ServerURL,
+		Username:      a.cfg.Username,
 		View:          a.view,
 		Error:         a.lastErr,
 		MinPriority:   a.cfg.MinPriority,
@@ -188,6 +201,7 @@ func (a *App) Connect(serverURL, username, password string) error {
 
 	a.mu.Lock()
 	a.cfg.ServerURL = normalized
+	a.cfg.Username = username
 	a.cfg.ClientToken = token
 	a.view = "gotify"
 	a.lastErr = ""
@@ -197,6 +211,7 @@ func (a *App) Connect(serverURL, username, password string) error {
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
+	applog.Printf("connect saved server=%q user=%q token=%s", cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
 	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
 
 	a.stopStream()
@@ -317,12 +332,21 @@ func (a *App) handleMessage(msg stream.Message) {
 	if id == "0" {
 		id = fmt.Sprintf("msg-%d", msg.AppID)
 	}
+	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
 	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
 		a.setError("notification: " + err.Error())
 		if a.tray != nil {
 			a.tray.SetStatus("Status: notify error")
 		}
 		a.emitStatus()
+	} else {
+		// Visible fallback when Windows swallows toasts: surface in tray + bring window forward.
+		if a.tray != nil {
+			a.tray.SetStatus("Msg: " + truncateRunes(msg.Title, 40))
+		}
+		if a.ctx != nil {
+			runtime.WindowShow(a.ctx)
+		}
 	}
 
 	if msg.ID > 0 {
@@ -350,4 +374,12 @@ func (a *App) emitStatus() {
 		return
 	}
 	runtime.EventsEmit(a.ctx, "status", a.GetStatus())
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }

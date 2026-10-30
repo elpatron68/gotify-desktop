@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/elpatron68/gotify-desktop/internal/applog"
 )
 
 const UIPrefix = "/g"
@@ -53,6 +55,7 @@ func (p *Proxy) Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		applog.Printf("proxy %s %s", r.Method, r.URL.Path)
 		p.serve(w, r)
 	})
 }
@@ -219,13 +222,45 @@ func setSessionCookie(h http.Header, token string) {
 	h.Add("Set-Cookie", cookie.String())
 }
 
-// injectSessionBootstrap installs cookie + WebSocket rewrite.
-// Wails cannot proxy WebSockets, so /g/stream would get HTTP 501; we point
-// WebSocket at the real Gotify server with ?token= instead.
+// injectSessionBootstrap installs cookie + token-on-every-request (Android-style)
+// + WebSocket rewrite. Wails cannot proxy WebSockets (HTTP 501 on /g/stream).
 func injectSessionBootstrap(body []byte, token, wsBase string) []byte {
 	script := `<script>(function(){
 var t=` + strconv.Quote(token) + `, wsBase=` + strconv.Quote(wsBase) + `;
 try{document.cookie='gotify-client-token='+encodeURIComponent(t)+'; path=/; max-age=604800; SameSite=Lax';}catch(e){}
+function withToken(url){
+  try{
+    if(typeof url!=='string') return url;
+    if(url.indexOf('token=')!==-1) return url;
+    if(!/\/(current|message|application|client|plugin|stream|auth|version|health)\b/.test(url) && url.indexOf('/g/')!==0) return url;
+    return url+(url.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(t);
+  }catch(e){return url;}
+}
+var XO=XMLHttpRequest.prototype.open, XS=XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.open=function(method,url){
+  arguments[1]=withToken(url);
+  this.__gdUrl=arguments[1];
+  return XO.apply(this,arguments);
+};
+XMLHttpRequest.prototype.send=function(body){
+  try{this.setRequestHeader('X-Gotify-Key',t);}catch(e){}
+  try{this.setRequestHeader('Authorization','Bearer '+t);}catch(e){}
+  return XS.apply(this,arguments);
+};
+if(window.fetch){
+  var OF=window.fetch;
+  window.fetch=function(input,init){
+    try{
+      if(typeof input==='string'){input=withToken(input);}
+      else if(input&&input.url){input=new Request(withToken(input.url),input);}
+      init=init||{};
+      var h=new Headers(init.headers||(input&&input.headers)||{});
+      h.set('X-Gotify-Key',t); h.set('Authorization','Bearer '+t);
+      init.headers=h;
+    }catch(e){}
+    return OF.call(this,input,init);
+  };
+}
 var Orig=window.WebSocket;
 function WS(url,protocols){
   try{
@@ -238,6 +273,7 @@ function WS(url,protocols){
 WS.prototype=Orig.prototype;
 WS.CONNECTING=Orig.CONNECTING;WS.OPEN=Orig.OPEN;WS.CLOSING=Orig.CLOSING;WS.CLOSED=Orig.CLOSED;
 window.WebSocket=WS;
+try{console.info('[gotify-desktop] session bootstrap ok');}catch(e){}
 })();</script>`
 
 	inject := []byte(script)

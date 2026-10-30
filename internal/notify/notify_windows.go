@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/elpatron68/gotify-desktop/internal/applog"
 	toast "git.sr.ht/~jackmordaunt/go-toast/v2"
 	"golang.org/x/sys/windows"
 )
@@ -19,6 +20,8 @@ import (
 const (
 	windowsAppID    = "Gotify.Desktop"
 	powershellAppID = `{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe`
+	// Explorer's toast host is almost always allowed in Windows notification settings.
+	explorerAppID = `Microsoft.Windows.Explorer`
 )
 
 var (
@@ -29,26 +32,34 @@ var (
 func showPlatformToast(title, body string) error {
 	windowsToastOnce.Do(func() {
 		windowsRegErr = ensureWindowsToastApp()
+		if windowsRegErr != nil {
+			applog.Printf("toast register: %v", windowsRegErr)
+		} else {
+			applog.Printf("toast register: AUMID=%s ok", windowsAppID)
+		}
 	})
 
-	// Prefer explicit PowerShell Show(). go-toast COM often returns nil while the
-	// toast stays invisible for unpackaged apps (missing Start Menu AUMID binding).
-	var errs []string
-	if windowsRegErr != nil {
-		errs = append(errs, "register: "+windowsRegErr.Error())
+	attempts := []struct {
+		name  string
+		appID string
+	}{
+		{"gotify-aumid", windowsAppID},
+		{"powershell-host", powershellAppID},
+		{"explorer-host", explorerAppID},
 	}
 
-	if err := powershellToast(windowsAppID, title, body); err != nil {
-		errs = append(errs, "aumid: "+err.Error())
-	} else {
+	var errs []string
+	for _, a := range attempts {
+		applog.Printf("toast try method=%s appID=%s title=%q", a.name, a.appID, title)
+		if err := powershellToast(a.appID, title, body); err != nil {
+			applog.Printf("toast fail method=%s: %v", a.name, err)
+			errs = append(errs, a.name+": "+err.Error())
+			continue
+		}
+		applog.Printf("toast Show() returned ok method=%s (if still invisible: check Windows Focus Assist / Settings→System→Notifications)", a.name)
 		return nil
 	}
-
-	if err := powershellToast(powershellAppID, title, body); err != nil {
-		errs = append(errs, "powershell-host: "+err.Error())
-		return fmt.Errorf("windows toast failed: %s", strings.Join(errs, "; "))
-	}
-	return nil
+	return fmt.Errorf("windows toast failed: %s", strings.Join(errs, "; "))
 }
 
 func ensureWindowsToastApp() error {
@@ -60,6 +71,7 @@ func ensureWindowsToastApp() error {
 	if err != nil {
 		return err
 	}
+	applog.Printf("toast exe=%s", exe)
 	if err := toast.SetAppData(toast.AppData{
 		AppID:         windowsAppID,
 		ActivationExe: exe,
@@ -69,7 +81,11 @@ func ensureWindowsToastApp() error {
 	if err := setCurrentProcessAUMID(windowsAppID); err != nil {
 		return err
 	}
-	_ = ensureStartMenuShortcut(exe)
+	if err := ensureStartMenuShortcut(exe); err != nil {
+		applog.Printf("toast shortcut: %v", err)
+	} else {
+		applog.Printf("toast shortcut ensured under Start Menu\\Programs\\Gotify Desktop.lnk")
+	}
 	return nil
 }
 
@@ -98,14 +114,24 @@ $xmlText = @'
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($xmlText)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(%s).Show($toast)
+$n = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(%s)
+$n.Show($toast)
+Write-Output ('notifier_ok setting=' + $n.Setting)
 `, xmlEscape(title), xmlEscape(body), psQuote(appID))
 
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()
+	trimmed := strings.TrimSpace(string(out))
+	if trimmed != "" {
+		applog.Printf("toast powershell output: %s", trimmed)
+	}
 	if err != nil {
-		return fmt.Errorf("%w (%s)", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%w (%s)", err, trimmed)
+	}
+	// Setting enum: 0=Enabled, 1=DisabledForApplication, 2=DisabledForUser, 3=DisabledByGroupPolicy, 4=DisabledByManifest
+	if strings.Contains(trimmed, "setting=1") || strings.Contains(trimmed, "setting=2") {
+		return fmt.Errorf("notifications disabled for this app (%s)", trimmed)
 	}
 	return nil
 }

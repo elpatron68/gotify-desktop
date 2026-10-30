@@ -10,6 +10,7 @@ const errorEl = document.getElementById('error');
 const statusLine = document.getElementById('status-line');
 const connectBtn = document.getElementById('connect-btn');
 const serverInput = document.getElementById('server-url');
+const usernameInput = document.getElementById('username');
 
 /** @type {'setup'|'gotify'|null} */
 let currentView = null;
@@ -40,8 +41,12 @@ function showSetup(status) {
   currentView = 'setup';
   setupView.hidden = false;
   gotifyView.hidden = true;
+  // Prefill like gotify/android Settings (url + username; never password).
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
+  }
+  if (status?.username && usernameInput) {
+    usernameInput.value = status.username;
   }
   frame.src = 'about:blank';
   updateStatusLine(status);
@@ -113,7 +118,7 @@ form.addEventListener('submit', async (event) => {
   connectBtn.disabled = true;
   connectBtn.textContent = 'Connecting…';
   const serverUrl = serverInput.value.trim();
-  const username = document.getElementById('username').value;
+  const username = usernameInput.value;
   const password = document.getElementById('password').value;
   try {
     await Connect(serverUrl, username, password);

@@ -12,12 +12,14 @@ import (
 
 const appDirName = "gotify-desktop"
 
-// Config holds persistent application settings. Passwords are never stored.
+// Config holds persistent application settings.
+// Passwords are never stored (same model as gotify/android Settings).
 type Config struct {
-	ServerURL    string `json:"server_url"`
-	ClientToken  string `json:"client_token"`
-	MinPriority  int    `json:"min_priority"`
-	LastMessageID uint  `json:"last_message_id,omitempty"`
+	ServerURL     string `json:"server_url"`
+	Username      string `json:"username,omitempty"`
+	ClientToken   string `json:"client_token"`
+	MinPriority   int    `json:"min_priority"`
+	LastMessageID uint   `json:"last_message_id,omitempty"`
 }
 
 func Default() Config {
