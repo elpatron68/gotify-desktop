@@ -30,7 +30,7 @@ function applySession(token) {
   // Keep a SameSite=Strict cookie on the shell origin as a non-HttpOnly fallback
   // for same-origin iframe requests before the first proxied response arrives.
   try {
-    document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Strict`;
+    document.cookie = `gotify-client-token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
   } catch (_) {
     /* ignore */
   }

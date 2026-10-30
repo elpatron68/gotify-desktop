@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/elpatron68/gotify-desktop/internal/auth"
@@ -21,15 +20,15 @@ import (
 
 // AppStatus is exposed to the frontend.
 type AppStatus struct {
-	Configured   bool   `json:"configured"`
-	Connected    bool   `json:"connected"`
-	ServerURL    string `json:"serverUrl"`
-	View         string `json:"view"` // "setup" | "gotify"
-	Error        string `json:"error"`
-	MinPriority  int    `json:"minPriority"`
-	NotifyReady  bool   `json:"notifyReady"`
-	NotifyError  string `json:"notifyError"`
-	LastMessageID uint  `json:"lastMessageId"`
+	Configured    bool   `json:"configured"`
+	Connected     bool   `json:"connected"`
+	ServerURL     string `json:"serverUrl"`
+	View          string `json:"view"` // "setup" | "gotify"
+	Error         string `json:"error"`
+	MinPriority   int    `json:"minPriority"`
+	NotifyReady   bool   `json:"notifyReady"`
+	NotifyError   string `json:"notifyError"`
+	LastMessageID uint   `json:"lastMessageId"`
 }
 
 // App is the Wails-bound application core.
@@ -43,11 +42,11 @@ type App struct {
 	lastErr   string
 	quitting  bool
 
-	auth    *auth.Client
-	stream  *stream.Client
-	notify  *notify.Notifier
-	tray    *tray.Controller
-	proxy   *gotifyproxy.Proxy
+	auth     *auth.Client
+	stream   *stream.Client
+	notify   *notify.Notifier
+	tray     *tray.Controller
+	proxy    *gotifyproxy.Proxy
 	trayIcon []byte
 }
 
@@ -73,6 +72,7 @@ func (a *App) buildMenu() *menu.Menu {
 		menu.SubMenu("Gotify", menu.NewMenuFromItems(
 			menu.Text("Show Window", nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
 			menu.Text("Settings", nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
+			menu.Text("Test Notification", nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
 			menu.Separator(),
 			menu.Text("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
 		)),
@@ -92,9 +92,6 @@ func (a *App) startup(ctx context.Context) {
 		a.mu.Unlock()
 	}
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
-	if _, err := a.proxy.StartLocal(); err != nil {
-		a.setError("local gotify ui: " + err.Error())
-	}
 
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:     a.ShowWindow,
@@ -121,9 +118,6 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.notify != nil {
 		a.notify.Close()
-	}
-	if a.proxy != nil {
-		_ = a.proxy.Close()
 	}
 }
 
@@ -169,11 +163,8 @@ func (a *App) GetClientToken() string {
 	return a.cfg.ClientToken
 }
 
-// GetUIPath returns the loopback URL for the embedded Gotify UI.
+// GetUIPath returns the same-origin reverse-proxy path for the embedded Gotify UI.
 func (a *App) GetUIPath() string {
-	if u := a.proxy.LocalURL(); u != "" {
-		return u + "/"
-	}
 	return gotifyproxy.UIPrefix + "/"
 }
 
@@ -207,9 +198,6 @@ func (a *App) Connect(serverURL, username, password string) error {
 		return fmt.Errorf("save config: %w", err)
 	}
 	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
-	if _, err := a.proxy.StartLocal(); err != nil {
-		return fmt.Errorf("local gotify ui: %w", err)
-	}
 
 	a.stopStream()
 	a.startStream()
@@ -217,7 +205,7 @@ func (a *App) Connect(serverURL, username, password string) error {
 	runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
 		"serverUrl": cfg.ServerURL,
 		"token":     cfg.ClientToken,
-		"uiPath":    a.GetUIPath(),
+		"uiPath":    gotifyproxy.UIPrefix + "/",
 	})
 	return nil
 }
@@ -290,9 +278,9 @@ func (a *App) startStream() {
 				}
 			}
 			a.emitStatus()
-			if errMsg != "" && containsUnauthorized(errMsg) {
-				a.OpenSettings()
-			}
+			// Do not force the setup form on transient unauthorized blips;
+			// the user can open Settings manually. Auto-open made every stream
+			// hiccup look like "login required again".
 		},
 	}
 	a.mu.Lock()
@@ -362,9 +350,4 @@ func (a *App) emitStatus() {
 		return
 	}
 	runtime.EventsEmit(a.ctx, "status", a.GetStatus())
-}
-
-func containsUnauthorized(s string) bool {
-	lower := strings.ToLower(s)
-	return strings.Contains(lower, "unauthorized") || strings.Contains(lower, "invalid client token")
 }

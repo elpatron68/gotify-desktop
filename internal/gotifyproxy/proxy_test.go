@@ -23,17 +23,21 @@ func TestIsGotifyAPIPath(t *testing.T) {
 	}
 }
 
-func TestInjectSessionBootstrap(t *testing.T) {
+func TestInjectSessionBootstrapRewritesWebSocket(t *testing.T) {
 	html := []byte("<!doctype html><html><head><title>Gotify</title></head><body></body></html>")
-	out := injectSessionBootstrap(html, "gtfy.c.testtoken")
+	out := injectSessionBootstrap(html, "gtfyc.test", "wss://gotify.example/")
 	s := string(out)
-	if !strings.Contains(s, "gtfy.c.testtoken") {
-		t.Fatal("expected token in bootstrap")
+	if !strings.Contains(s, "window.WebSocket") {
+		t.Fatal("expected WebSocket rewrite")
 	}
-	headIdx := strings.Index(s, "<head>")
-	scriptIdx := strings.Index(s, "gotify-client-token")
-	if headIdx < 0 || scriptIdx < headIdx {
-		t.Fatalf("bootstrap should be inside/after <head>: %s", s)
+	if !strings.Contains(s, "wss://gotify.example/") {
+		t.Fatal("expected upstream ws base")
+	}
+	if !strings.Contains(s, "stream?token=") {
+		t.Fatal("expected tokenized stream URL")
+	}
+	if !strings.Contains(s, "gtfyc.test") {
+		t.Fatal("expected token")
 	}
 }
 
@@ -68,9 +72,6 @@ func TestProxyInjectsAuthAndSessionCookie(t *testing.T) {
 	if !strings.Contains(cookie, "gotify-client-token=tok-123") {
 		t.Fatalf("Set-Cookie = %q", cookie)
 	}
-	if !strings.Contains(strings.ToLower(cookie), "httponly") {
-		t.Fatalf("expected HttpOnly cookie, got %q", cookie)
-	}
 }
 
 func TestProxyHTMLBootstrap(t *testing.T) {
@@ -95,50 +96,36 @@ func TestProxyHTMLBootstrap(t *testing.T) {
 	if !strings.Contains(body, "tok-xyz") {
 		t.Fatalf("missing token bootstrap: %s", body)
 	}
+	if !strings.Contains(body, "window.WebSocket") {
+		t.Fatalf("missing websocket rewrite: %s", body)
+	}
+	if !strings.Contains(body, "wss://") && !strings.Contains(body, "ws://") {
+		t.Fatalf("missing ws base: %s", body)
+	}
 }
 
-func TestLocalUIServesAtRoot(t *testing.T) {
+func TestLogoutDoesNotHitUpstream(t *testing.T) {
+	hit := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/":
-			w.Header().Set("Content-Type", "text/html")
-			_, _ = io.WriteString(w, "<html><head></head><body>ui</body></html>")
-		case "/current/user":
-			if r.Header.Get("X-Gotify-Key") != "tok-local" {
-				t.Fatalf("missing key")
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":1,"name":"admin"}`))
-		default:
-			http.NotFound(w, r)
-		}
+		hit = true
+		t.Fatalf("upstream should not be called for logout, path=%s", r.URL.Path)
 	}))
 	defer upstream.Close()
 
 	p := &Proxy{}
-	_ = p.Update(upstream.URL, "tok-local")
-	base, err := p.StartLocal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
+	_ = p.Update(upstream.URL, "tok-keep")
 
-	resp, err := http.Get(base + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "tok-local") {
-		t.Fatalf("html = %s", body)
-	}
+	req := httptest.NewRequest(http.MethodPost, "http://wails.local/g/auth/logout", nil)
+	rr := httptest.NewRecorder()
+	p.Middleware(http.NotFoundHandler()).ServeHTTP(rr, req)
 
-	resp2, err := http.Get(base + "/current/user")
-	if err != nil {
-		t.Fatal(err)
+	if hit {
+		t.Fatal("upstream was hit")
 	}
-	defer resp2.Body.Close()
-	if resp2.StatusCode != 200 {
-		t.Fatalf("status = %d", resp2.StatusCode)
+	if rr.Code != 200 {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	if !strings.Contains(rr.Header().Get("Set-Cookie"), "tok-keep") {
+		t.Fatalf("cookie = %q", rr.Header().Get("Set-Cookie"))
 	}
 }

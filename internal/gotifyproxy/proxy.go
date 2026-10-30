@@ -2,9 +2,7 @@ package gotifyproxy
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -19,16 +17,15 @@ const UIPrefix = "/g"
 // sessionCookieMaxAge matches Gotify v3 auth.CookieMaxAge (7 days).
 const sessionCookieMaxAge = 7 * 24 * 60 * 60
 
-// Proxy reverse-proxies Gotify through the local Wails asset server and a
-// dedicated loopback listener. The loopback UI is preferred: Gotify v3 derives
-// its API base from location.pathname, so serving at / avoids /g/ prefix issues.
+// Proxy reverse-proxies Gotify HTTP through the Wails asset server under /g/.
+//
+// Important: Wails' AssetServer returns 501 for WebSocket upgrades, so the
+// Gotify UI must not open ws://<wails>/g/stream. We inject a bootstrap that
+// rewrites WebSocket connections to the real upstream wss://host/stream?token=.
 type Proxy struct {
 	mu     sync.RWMutex
 	target *url.URL
 	token  string
-
-	localURL string
-	localLn  net.Listener
 }
 
 // Update sets the upstream Gotify base URL and client token.
@@ -49,56 +46,14 @@ func (p *Proxy) Update(serverURL, token string) error {
 	return nil
 }
 
-// StartLocal binds a loopback HTTP server that serves Gotify at /.
-// Safe to call once; subsequent calls return the existing URL.
-func (p *Proxy) StartLocal() (string, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.localURL != "" {
-		return p.localURL, nil
-	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", fmt.Errorf("listen loopback gotify ui: %w", err)
-	}
-	p.localLn = ln
-	p.localURL = "http://" + ln.Addr().String()
-	go func() {
-		_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p.serve(w, r, false)
-		}))
-	}()
-	return p.localURL, nil
-}
-
-// LocalURL returns the loopback UI base URL (no trailing path), or empty if not started.
-func (p *Proxy) LocalURL() string {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.localURL
-}
-
-// Close stops the loopback listener.
-func (p *Proxy) Close() error {
-	p.mu.Lock()
-	ln := p.localLn
-	p.localLn = nil
-	p.localURL = ""
-	p.mu.Unlock()
-	if ln != nil {
-		return ln.Close()
-	}
-	return nil
-}
-
-// Middleware returns a Wails AssetServer middleware (legacy /g/ embed path).
+// Middleware returns a Wails AssetServer middleware.
 func (p *Proxy) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !p.shouldProxy(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		p.serve(w, r, true)
+		p.serve(w, r)
 	})
 }
 
@@ -141,8 +96,7 @@ func isGotifyAPIPath(path string) bool {
 	return false
 }
 
-// serve proxies a request. stripUIPrefix is true for the Wails /g/ middleware.
-func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool) {
+func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 	p.mu.RLock()
 	if p.target == nil || p.token == "" {
 		p.mu.RUnlock()
@@ -154,18 +108,27 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool
 	p.mu.RUnlock()
 
 	path := r.URL.Path
-	uiHTML := path == "/" || path == UIPrefix || path == UIPrefix+"/"
-	if stripUIPrefix {
-		if path == UIPrefix {
+	uiHTML := false
+	if path == UIPrefix {
+		path = "/"
+		uiHTML = true
+	} else if strings.HasPrefix(path, UIPrefix+"/") {
+		path = strings.TrimPrefix(path, UIPrefix)
+		if path == "" {
 			path = "/"
-			uiHTML = true
-		} else if strings.HasPrefix(path, UIPrefix+"/") {
-			path = strings.TrimPrefix(path, UIPrefix)
-			if path == "" {
-				path = "/"
-			}
-			uiHTML = path == "/"
 		}
+		uiHTML = path == "/"
+	}
+
+	// Never let the embedded UI delete our desktop client token via logout.
+	// Gotify's tryAuthenticate() calls logout() on any 4xx; without this the
+	// desktop stream token would be destroyed and force a full re-login.
+	if r.Method == http.MethodPost && (path == "/auth/logout" || strings.HasPrefix(path, "/auth/logout")) {
+		w.Header().Set("Content-Type", "application/json")
+		setSessionCookie(w.Header(), token)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+		return
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(&target)
@@ -176,20 +139,11 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool
 		req.URL.Host = target.Host
 		req.URL.Path = path
 		req.Host = target.Host
-		// Force identity encoding. Deleting Accept-Encoding is not enough:
-		// net/http.Transport may re-add gzip and leave ModifyResponse with a
-		// compressed body (breaking HTML injection).
+		// Force identity encoding so ModifyResponse can rewrite HTML.
 		req.Header.Set("Accept-Encoding", "identity")
 		req.Header.Set("X-Gotify-Key", token)
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Cookie", "gotify-client-token="+token)
-		if path == "/stream" || strings.HasPrefix(path, "/stream/") {
-			q := req.URL.Query()
-			if q.Get("token") == "" {
-				q.Set("token", token)
-				req.URL.RawQuery = q.Encode()
-			}
-		}
 		req.Header.Del("Origin")
 		req.Header.Del("Referer")
 	}
@@ -204,16 +158,14 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool
 				if u.Host == "" || strings.EqualFold(u.Host, target.Host) {
 					u.Scheme = ""
 					u.Host = ""
-					if stripUIPrefix {
-						locPath := u.Path
-						if locPath == "" || locPath == "/" {
-							resp.Header.Set("Location", UIPrefix+"/")
-						} else if isGotifyAPIPath(locPath) {
-							resp.Header.Set("Location", u.String())
-						} else {
-							u.Path = UIPrefix + locPath
-							resp.Header.Set("Location", u.String())
-						}
+					locPath := u.Path
+					if locPath == "" || locPath == "/" {
+						resp.Header.Set("Location", UIPrefix+"/")
+					} else if isGotifyAPIPath(locPath) {
+						resp.Header.Set("Location", u.String())
+					} else {
+						u.Path = UIPrefix + locPath
+						resp.Header.Set("Location", u.String())
 					}
 				}
 			}
@@ -225,7 +177,8 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool
 			if err != nil {
 				return err
 			}
-			body = injectSessionBootstrap(body, token)
+			wsBase := websocketBase(&target)
+			body = injectSessionBootstrap(body, token, wsBase)
 			resp.Header.Del("Content-Encoding")
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 			resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
@@ -239,6 +192,20 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request, stripUIPrefix bool
 	proxy.ServeHTTP(w, r)
 }
 
+func websocketBase(target *url.URL) string {
+	u := *target
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	case "http":
+		u.Scheme = "ws"
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/"
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
 func setSessionCookie(h http.Header, token string) {
 	cookie := &http.Cookie{
 		Name:     "gotify-client-token",
@@ -246,16 +213,34 @@ func setSessionCookie(h http.Header, token string) {
 		Path:     "/",
 		MaxAge:   sessionCookieMaxAge,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(sessionCookieMaxAge * time.Second),
 	}
 	h.Add("Set-Cookie", cookie.String())
 }
 
-// injectSessionBootstrap seeds a cookie fallback. Gotify v3 no longer uses
-// localStorage for sessions (HttpOnly cookie only).
-func injectSessionBootstrap(body []byte, token string) []byte {
-	inject := []byte(`<script>(function(){var t=` + strconv.Quote(token) + `;try{document.cookie='gotify-client-token='+encodeURIComponent(t)+'; path=/; max-age=604800; SameSite=Strict';}catch(e){}})();</script>`)
+// injectSessionBootstrap installs cookie + WebSocket rewrite.
+// Wails cannot proxy WebSockets, so /g/stream would get HTTP 501; we point
+// WebSocket at the real Gotify server with ?token= instead.
+func injectSessionBootstrap(body []byte, token, wsBase string) []byte {
+	script := `<script>(function(){
+var t=` + strconv.Quote(token) + `, wsBase=` + strconv.Quote(wsBase) + `;
+try{document.cookie='gotify-client-token='+encodeURIComponent(t)+'; path=/; max-age=604800; SameSite=Lax';}catch(e){}
+var Orig=window.WebSocket;
+function WS(url,protocols){
+  try{
+    if(typeof url==='string' && /\/stream\/?(\?|$)/.test(url)){
+      url=wsBase+'stream?token='+encodeURIComponent(t);
+    }
+  }catch(e){}
+  return protocols===undefined?new Orig(url):new Orig(url,protocols);
+}
+WS.prototype=Orig.prototype;
+WS.CONNECTING=Orig.CONNECTING;WS.OPEN=Orig.OPEN;WS.CLOSING=Orig.CLOSING;WS.CLOSED=Orig.CLOSED;
+window.WebSocket=WS;
+})();</script>`
+
+	inject := []byte(script)
 	lower := bytes.ToLower(body)
 	if idx := bytes.Index(lower, []byte("<head")); idx >= 0 {
 		if end := bytes.IndexByte(body[idx:], '>'); end >= 0 {
