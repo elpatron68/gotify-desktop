@@ -20,6 +20,7 @@ body,
 #app {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
 }
@@ -37,6 +38,12 @@ body,
     radial-gradient(ellipse at top left, rgba(42, 157, 143, 0.18), transparent 55%),
     radial-gradient(ellipse at bottom right, rgba(38, 70, 110, 0.35), transparent 50%),
     var(--bg);
+}
+
+/* Beat `#setup-view { display:flex }` so [hidden] actually hides the view. */
+#setup-view[hidden],
+#gotify-view[hidden] {
+  display: none;
 }
 
 .setup-card {
