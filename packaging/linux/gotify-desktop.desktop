@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Gotify Desktop
+Comment=Gotify desktop notifications
+Exec=gotify-desktop
+Icon=gotify-desktop
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true
+X-AppImage-Version=0.1.9
