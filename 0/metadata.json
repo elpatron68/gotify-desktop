@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M690X128HVWR0160EA48CF5Y",
+  "session_id": "a67d5417-3def-4362-9048-b0afaaa4fba7",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-31T13:03:07.540202159Z",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/version/version.go",
+    "wails.json"
+  ],
+  "agent": "Cursor",
+  "model": "default",
+  "turn_id": "07943e37257f",
+  "checkpoint_transcript_start": 79,
+  "transcript_lines_at_start": 79,
+  "compact_transcript_start": 8,
+  "token_usage": {
+    "input_tokens": 2500,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 552704,
+    "output_tokens": 1134,
+    "api_call_count": 2
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 5
+  }
+}
