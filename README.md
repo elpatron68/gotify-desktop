@@ -6,7 +6,8 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 
 - Connect with Gotify username/password; the app creates a **client token** (password is not stored)
 - Native desktop **notifications** via Gotify WebSocket `/stream`
-- **System tray** with open / settings / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
+- **System tray** with open / settings / start-at-login / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
+- **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
 - Embedded Gotify **web UI** (management) in an in-app iframe
 

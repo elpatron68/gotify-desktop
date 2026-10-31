@@ -10,8 +10,9 @@ type Controller struct {
 }
 
 // New creates a macOS tray stub.
-func New(icon []byte, cb Callbacks) *Controller {
+func New(icon []byte, cb Callbacks, opts Options) *Controller {
 	_ = icon
+	_ = opts
 	return &Controller{cb: cb}
 }
 
@@ -23,3 +24,6 @@ func (c *Controller) Stop() {}
 
 // SetStatus is a no-op on macOS.
 func (c *Controller) SetStatus(text string) { _ = text }
+
+// SetAutostartChecked is a no-op on macOS (app menu owns the checkbox).
+func (c *Controller) SetAutostartChecked(enabled bool) { _ = enabled }

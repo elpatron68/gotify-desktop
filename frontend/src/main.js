@@ -2,6 +2,17 @@ import './style.css';
 import {Connect, GetStatus, GetClientToken, GetUIPath} from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 
+// OS toasts are native ("Gotify Desktop"). Block WebView Notification so
+// nothing is attributed as "wails.localhost".
+try {
+  const Denied = function () {};
+  Denied.permission = 'denied';
+  Denied.requestPermission = () => Promise.resolve('denied');
+  window.Notification = Denied;
+} catch (_) {
+  /* ignore */
+}
+
 const setupView = document.getElementById('setup-view');
 const gotifyView = document.getElementById('gotify-view');
 const frame = document.getElementById('gotify-frame');
@@ -127,20 +138,6 @@ function postToGotify(msg) {
   }
 }
 
-async function shellNotify(title, body) {
-  try {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-    if (Notification.permission === 'granted') {
-      new Notification(title || 'Gotify', {body: body || '', silent: false});
-    }
-  } catch (err) {
-    console.warn('shell Notification failed', err);
-  }
-}
-
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   showError('');
@@ -173,9 +170,9 @@ EventsOn('show-gotify', (payload) => {
   bootstrapped = true;
   showGotify(payload, {forceReload: true}).catch(console.error);
 });
-EventsOn('gotify-message', (payload) => {
+// Native OS toasts come from Go only. This event only refreshes the iframe list.
+EventsOn('gotify-message', () => {
   postToGotify({type: 'gotify-desktop-refresh'});
-  shellNotify(payload?.title, payload?.body).catch(console.warn);
 });
 
 async function bootstrap() {

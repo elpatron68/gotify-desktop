@@ -32,6 +32,16 @@ func (n *Notifier) Init(ctx context.Context) error {
 	n.ctx = ctx
 	n.ensureLogger()
 
+	// Windows: never use Wails/WebView2 notifications — they appear as
+	// "wails.localhost". Native AUMID toasts show "Gotify Desktop" instead.
+	if runtime.GOOS == "windows" {
+		n.ready = false
+		n.initErr = nil
+		n.logf("using native Windows toasts (skipping Wails/WebView2 notifier)")
+		applog.Printf("notify init ready GOOS=windows backend=native-aumid")
+		return nil
+	}
+
 	if err := wailsruntime.InitializeNotifications(ctx); err != nil {
 		n.initErr = err
 		n.ready = false

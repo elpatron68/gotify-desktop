@@ -290,6 +290,14 @@ function WS(url,protocols){
 WS.prototype=Orig.prototype;
 WS.CONNECTING=Orig.CONNECTING;WS.OPEN=Orig.OPEN;WS.CLOSING=Orig.CLOSING;WS.CLOSED=Orig.CLOSED;
 window.WebSocket=WS;
+// Desktop owns OS toasts — suppress Gotify SPA browser Notification (would duplicate as wails.localhost).
+try{
+  var N=function(title,opts){this.title=title;this.options=opts||{};};
+  N.permission='denied';
+  N.requestPermission=function(){return Promise.resolve('denied');};
+  N.prototype.close=function(){};
+  window.Notification=N;
+}catch(e){}
 try{console.info('[gotify-desktop] session bootstrap ok wsBase='+wsBase);}catch(e){}
 // Keep the UI off the login route if a desktop token is present.
 setInterval(function(){
