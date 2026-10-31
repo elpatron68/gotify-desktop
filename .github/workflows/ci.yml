@@ -30,6 +30,12 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.sum
 
+      # Wails v3 pulls GTK4/WebKitGTK via CGO even for `go test ./...`.
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
       # main.go embeds frontend/dist; keep a placeholder so `go test ./...` can compile.
       - name: Ensure frontend embed path exists
         run: |

@@ -1,6 +1,7 @@
 package tray
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -48,9 +49,7 @@ func (c *Controller) Start() {
 		systray.SetIcon(c.icon)
 		systray.SetTemplateIcon(c.icon)
 	}
-	tooltip := or(c.opts.Labels.Tooltip, "Gotify Desktop")
-	systray.SetTooltip(tooltip)
-	systray.SetLabel("")
+	applyTrayTitle(systray, c.opts.Labels.Tooltip)
 	systray.OnClick(func() {
 		if c.cb.OnOpen != nil {
 			c.cb.OnOpen()
@@ -118,9 +117,7 @@ func (c *Controller) SetLabels(l Labels) {
 	if tray == nil {
 		return
 	}
-	if l.Tooltip != "" {
-		tray.SetTooltip(l.Tooltip)
-	}
+	applyTrayTitle(tray, l.Tooltip)
 	menu := c.buildMenu()
 	tray.SetMenu(menu)
 	c.mu.Lock()
@@ -244,4 +241,20 @@ func or(v, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// applyTrayTitle sets the hover/status title. On Linux, Wails SetTooltip is a
+// no-op and StatusNotifierItem Title comes from SetLabel (empty → "Wails").
+// macOS keeps an empty label so the menu bar stays icon-only.
+func applyTrayTitle(systray *application.SystemTray, tooltip string) {
+	if systray == nil {
+		return
+	}
+	title := or(tooltip, "Gotify Desktop")
+	systray.SetTooltip(title)
+	if runtime.GOOS == "linux" {
+		systray.SetLabel(title)
+		return
+	}
+	systray.SetLabel("")
 }
