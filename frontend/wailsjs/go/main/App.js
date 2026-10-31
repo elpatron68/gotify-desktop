@@ -10,6 +10,14 @@ export function GetClientToken() {
   return window['go']['main']['App']['GetClientToken']();
 }
 
+export function GetI18nCatalog() {
+  return window['go']['main']['App']['GetI18nCatalog']();
+}
+
+export function GetLocale() {
+  return window['go']['main']['App']['GetLocale']();
+}
+
 export function GetServerURL() {
   return window['go']['main']['App']['GetServerURL']();
 }
@@ -36,6 +44,10 @@ export function ProxyMiddleware() {
 
 export function Quit() {
   return window['go']['main']['App']['Quit']();
+}
+
+export function SetLocale(arg1) {
+  return window['go']['main']['App']['SetLocale'](arg1);
 }
 
 export function ShowWindow() {

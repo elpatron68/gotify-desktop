@@ -21,6 +21,8 @@ type Config struct {
 	MinPriority   int    `json:"min_priority"`
 	LastMessageID uint   `json:"last_message_id,omitempty"`
 	Autostart     bool   `json:"autostart,omitempty"`
+	// Locale is a BCP-47 language tag (e.g. "de", "en"). Empty = follow the OS.
+	Locale string `json:"locale,omitempty"`
 }
 
 func Default() Config {

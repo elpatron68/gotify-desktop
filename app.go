@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/elpatron68/gotify-desktop/internal/applog"
@@ -12,6 +13,7 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/autostart"
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/gotifyproxy"
+	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
@@ -58,6 +60,8 @@ type App struct {
 
 // NewApp creates the application.
 func NewApp(trayIcon []byte) *App {
+	// Locale before menus/tray: buildMenu runs before OnStartup.
+	i18n.Init("")
 	as, err := autostart.New()
 	if err != nil {
 		as = nil
@@ -80,19 +84,55 @@ func (a *App) ProxyMiddleware() func(http.Handler) http.Handler {
 // buildMenu creates the native application menu (needed on macOS where systray is disabled).
 func (a *App) buildMenu() *menu.Menu {
 	enabled := a.autostart != nil && a.autostart.IsEnabled()
-	a.autostartMenuItem = menu.Checkbox("Start at Login", enabled, nil, func(_ *menu.CallbackData) {
+	a.autostartMenuItem = menu.Checkbox(i18n.T("menu.start_at_login"), enabled, nil, func(_ *menu.CallbackData) {
 		a.ToggleAutostart()
 	})
+	current := i18n.Locale()
+	langMenu := menu.NewMenu()
+	for _, lang := range i18n.Languages() {
+		code := lang.Code
+		langMenu.Append(menu.Checkbox(lang.Name, code == current, nil, func(_ *menu.CallbackData) {
+			a.SetLocale(code)
+		}))
+	}
 	return menu.NewMenuFromItems(
-		menu.SubMenu("Gotify", menu.NewMenuFromItems(
-			menu.Text("Show Window", nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
-			menu.Text("Settings", nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
-			menu.Text("Test Notification", nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
+		menu.SubMenu(i18n.T("app.gotify"), menu.NewMenuFromItems(
+			menu.Text(i18n.T("menu.show_window"), nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
+			menu.Text(i18n.T("menu.settings"), nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
+			menu.Text(i18n.T("menu.test_notification"), nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
 			a.autostartMenuItem,
+			menu.SubMenu(i18n.T("menu.language"), langMenu),
 			menu.Separator(),
-			menu.Text("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
+			menu.Text(i18n.T("menu.quit"), keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
 		)),
 	)
+}
+
+func trayLabels() tray.Labels {
+	return tray.Labels{
+		Tooltip:          i18n.T("tray.tooltip"),
+		StatusStarting:   i18n.T("tray.status_starting"),
+		StatusTooltip:    i18n.T("tray.status_tooltip"),
+		Open:             i18n.T("tray.open"),
+		OpenTooltip:      i18n.T("tray.open_tooltip"),
+		Settings:         i18n.T("tray.settings"),
+		SettingsTooltip:  i18n.T("tray.settings_tooltip"),
+		Autostart:        i18n.T("tray.autostart"),
+		AutostartTooltip: i18n.T("tray.autostart_tooltip"),
+		Language:         i18n.T("tray.language"),
+		LanguageTooltip:  i18n.T("tray.language_tooltip"),
+		Quit:             i18n.T("tray.quit"),
+		QuitTooltip:      i18n.T("tray.quit_tooltip"),
+	}
+}
+
+func trayLanguages() []tray.Language {
+	langs := i18n.Languages()
+	out := make([]tray.Language, 0, len(langs))
+	for _, l := range langs {
+		out = append(out, tray.Language{Code: l.Code, Name: l.Name})
+	}
+	return out
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -114,6 +154,13 @@ func (a *App) startup(ctx context.Context) {
 		applog.Printf("config loaded configured=%v server=%q user=%q token=%s",
 			cfg.Configured(), cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
 	}
+	lang := i18n.Init(a.cfg.Locale)
+	applog.Printf("locale=%s (config=%q)", lang, a.cfg.Locale)
+	// Rebuild native menu after config locale (buildMenu ran earlier with OS default).
+	if a.ctx != nil {
+		runtime.MenuSetApplicationMenu(a.ctx, a.buildMenu())
+		runtime.MenuUpdateApplicationMenu(a.ctx)
+	}
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
 	if _, err := a.proxy.StartWSProxy(); err != nil {
 		applog.Printf("ws proxy start failed: %v", err)
@@ -124,8 +171,14 @@ func (a *App) startup(ctx context.Context) {
 		OnOpen:      a.ShowWindow,
 		OnSettings:  a.OpenSettings,
 		OnAutostart: a.ToggleAutostart,
+		OnLanguage:  a.SetLocale,
 		OnQuit:      a.Quit,
-	}, tray.Options{AutostartEnabled: autostartOn})
+	}, tray.Options{
+		AutostartEnabled: autostartOn,
+		Locale:           i18n.Locale(),
+		Languages:        trayLanguages(),
+		Labels:           trayLabels(),
+	})
 	a.tray.Start()
 
 	if a.cfg.Configured() {
@@ -135,7 +188,7 @@ func (a *App) startup(ctx context.Context) {
 		a.startStream()
 		applog.Printf("startup: opening gotify view uiPath=%s", gotifyproxy.UIPrefix+"/")
 	} else {
-		a.tray.SetStatus("Status: not configured")
+		a.tray.SetStatus(i18n.T("tray.status_not_configured"))
 		applog.Printf("startup: setup view (not configured)")
 	}
 	a.emitStatus()
@@ -337,11 +390,11 @@ func (a *App) startStream() {
 			a.mu.Unlock()
 			if a.tray != nil {
 				if connected {
-					a.tray.SetStatus("Status: connected")
+					a.tray.SetStatus(i18n.T("tray.status_connected"))
 				} else if errMsg != "" {
-					a.tray.SetStatus("Status: error")
+					a.tray.SetStatus(i18n.T("tray.status_error"))
 				} else {
-					a.tray.SetStatus("Status: disconnected")
+					a.tray.SetStatus(i18n.T("tray.status_disconnected"))
 				}
 			}
 			a.emitStatus()
@@ -396,11 +449,13 @@ func (a *App) handleMessage(msg stream.Message) {
 	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
 		a.setError("notification: " + err.Error())
 		if a.tray != nil {
-			a.tray.SetStatus("Status: notify error")
+			a.tray.SetStatus(i18n.T("tray.status_notify_error"))
 		}
 		a.emitStatus()
 	} else if a.tray != nil {
-		a.tray.SetStatus("Msg: " + truncateRunes(msg.Title, 40))
+		a.tray.SetStatus(i18n.Tf("tray.msg_prefix", map[string]string{
+			"Title": truncateRunes(msg.Title, 40),
+		}))
 	}
 
 	if msg.ID > 0 {
@@ -414,7 +469,53 @@ func (a *App) handleMessage(msg stream.Message) {
 
 // TestNotification sends a local test notification (helps diagnose desktop notify setup).
 func (a *App) TestNotification() error {
-	return a.notify.Show("test", "Gotify Desktop", "Test notification from Gotify Desktop")
+	return a.notify.Show("test", i18n.T("notify.test_title"), i18n.T("notify.test_body"))
+}
+
+// GetLocale returns the active UI language code (e.g. "en", "de").
+func (a *App) GetLocale() string {
+	return i18n.Locale()
+}
+
+// GetI18nCatalog returns the active translation catalog as JSON for the web UI.
+func (a *App) GetI18nCatalog() string {
+	raw, err := i18n.CatalogJSON()
+	if err != nil {
+		return "{}"
+	}
+	return string(raw)
+}
+
+// SetLocale switches UI language, persists it, and refreshes tray / menu / web UI.
+func (a *App) SetLocale(code string) {
+	code = strings.TrimSpace(strings.ToLower(code))
+	if code == "" {
+		return
+	}
+	lang := i18n.Init(code)
+	a.mu.Lock()
+	a.cfg.Locale = lang
+	cfg := a.cfg
+	a.mu.Unlock()
+	if err := config.Save(cfg); err != nil {
+		applog.Printf("locale save config: %v", err)
+	}
+	applog.Printf("locale set to %s", lang)
+
+	if a.tray != nil {
+		a.tray.SetLabels(trayLabels())
+		a.tray.SetLocaleChecked(lang)
+	}
+	if a.ctx != nil {
+		runtime.MenuSetApplicationMenu(a.ctx, a.buildMenu())
+		runtime.MenuUpdateApplicationMenu(a.ctx)
+		runtime.WindowSetTitle(a.ctx, i18n.T("app.name"))
+		runtime.EventsEmit(a.ctx, "locale-changed", map[string]string{
+			"locale":  lang,
+			"catalog": a.GetI18nCatalog(),
+		})
+	}
+	a.emitStatus()
 }
 
 // ToggleAutostart flips login autostart and updates tray / app menu checkmarks.

@@ -104,7 +104,7 @@ func (n *Notifier) Show(id, title, body string) error {
 	n.mu.Unlock()
 
 	if title == "" {
-		title = "Gotify"
+		title = "Gotify" // brand fallback; UI should pass a localized title when empty matters
 	}
 
 	if runtime.GOOS == "windows" {

@@ -185,7 +185,13 @@ Settings are stored under the user config directory:
 - macOS: `~/Library/Application Support/gotify-desktop/config.json`
 - Windows: `%AppData%\gotify-desktop\config.json`
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`.
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language).
+
+### Internationalization
+
+UI strings (setup form, tray, app menu, status) live in `internal/i18n/locales/*.json`. **English is the fallback.** Bundled languages: `en`, `de`, `fr`, `es`.
+
+Default: OS language if available, otherwise English. Change via **Language** in the tray (or app menu on macOS); the choice is stored as `locale` in `config.json`.
 
 Notification diagnostics are appended to `notify.log` in the same directory (e.g. `%AppData%\gotify-desktop\notify.log` on Windows).
 

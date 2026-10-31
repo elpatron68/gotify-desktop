@@ -27,3 +27,9 @@ func (c *Controller) SetStatus(text string) { _ = text }
 
 // SetAutostartChecked is a no-op on macOS (app menu owns the checkbox).
 func (c *Controller) SetAutostartChecked(enabled bool) { _ = enabled }
+
+// SetLabels is a no-op on macOS.
+func (c *Controller) SetLabels(l Labels) { _ = l }
+
+// SetLocaleChecked is a no-op on macOS.
+func (c *Controller) SetLocaleChecked(code string) { _ = code }

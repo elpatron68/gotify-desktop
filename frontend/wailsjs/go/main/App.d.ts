@@ -6,6 +6,10 @@ export function Connect(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function GetClientToken():Promise<string>;
 
+export function GetI18nCatalog():Promise<string>;
+
+export function GetLocale():Promise<string>;
+
 export function GetServerURL():Promise<string>;
 
 export function GetStatus():Promise<main.AppStatus>;
@@ -19,6 +23,8 @@ export function OpenSettings():Promise<void>;
 export function ProxyMiddleware():Promise<any>;
 
 export function Quit():Promise<void>;
+
+export function SetLocale(arg1:string):Promise<void>;
 
 export function ShowWindow():Promise<void>;
 

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -31,7 +32,7 @@ func main() {
 	app := NewApp(icon)
 
 	err := wails.Run(&options.App{
-		Title:             "Gotify Desktop",
+		Title:             i18n.T("app.name"),
 		Width:             1100,
 		Height:            800,
 		MinWidth:          640,
