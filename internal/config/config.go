@@ -12,6 +12,11 @@ import (
 
 const appDirName = "gotify-desktop"
 
+const (
+	HistoryModeToasts = "toasts"
+	HistoryModeAll    = "all"
+)
+
 // Config holds persistent application settings.
 // Passwords are never stored (same model as gotify/android Settings).
 type Config struct {
@@ -23,6 +28,8 @@ type Config struct {
 	Autostart     bool   `json:"autostart,omitempty"`
 	// Locale is a BCP-47 language tag (e.g. "de", "en"). Empty = follow the OS.
 	Locale string `json:"locale,omitempty"`
+	// HistoryMode is "toasts" (default) or "all". Unknown/empty values normalize to toasts.
+	HistoryMode string `json:"history_mode,omitempty"`
 }
 
 func Default() Config {
@@ -64,6 +71,7 @@ func Load() (Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return Default(), fmt.Errorf("parse config: %w", err)
 	}
+	cfg.HistoryMode = NormalizeHistoryMode(cfg.HistoryMode)
 	return cfg, nil
 }
 
@@ -80,6 +88,7 @@ func Save(cfg Config) error {
 	if err != nil {
 		return err
 	}
+	cfg.HistoryMode = NormalizeHistoryMode(cfg.HistoryMode)
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
@@ -145,4 +154,14 @@ func StreamURL(serverURL, token string) (string, error) {
 // ShouldNotify returns true if message priority meets the configured minimum.
 func ShouldNotify(minPriority, messagePriority int) bool {
 	return messagePriority >= minPriority
+}
+
+// NormalizeHistoryMode maps unknown or empty values to toasts; "all" (any case) stays all.
+func NormalizeHistoryMode(m string) string {
+	switch strings.ToLower(strings.TrimSpace(m)) {
+	case HistoryModeAll:
+		return HistoryModeAll
+	default:
+		return HistoryModeToasts
+	}
 }

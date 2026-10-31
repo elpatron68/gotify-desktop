@@ -185,7 +185,7 @@ Settings are stored under the user config directory:
 - macOS: `~/Library/Application Support/gotify-desktop/config.json`
 - Windows: `%AppData%\gotify-desktop\config.json`
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language).
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`). Notification history is stored as `history.json` in the same directory.
 
 ### Internationalization
 

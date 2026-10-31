@@ -56,6 +56,18 @@ func TestStreamURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeHistoryMode(t *testing.T) {
+	if NormalizeHistoryMode("") != HistoryModeToasts {
+		t.Fatal()
+	}
+	if NormalizeHistoryMode("ALL") != HistoryModeAll {
+		t.Fatal()
+	}
+	if NormalizeHistoryMode("nope") != HistoryModeToasts {
+		t.Fatal()
+	}
+}
+
 func TestShouldNotify(t *testing.T) {
 	if !ShouldNotify(0, 0) {
 		t.Fatal("priority 0 should notify when min is 0")
