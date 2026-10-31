@@ -1,0 +1,66 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M690MV94N931A1D17CJ57ZHV",
+  "strategy": "manual-commit",
+  "branch": "feat/auto-update",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    "README.md",
+    "app.go",
+    "app_update.go",
+    "internal/config/config.go",
+    "internal/i18n/locales/de.json",
+    "internal/i18n/locales/en.json",
+    "internal/i18n/locales/es.json",
+    "internal/i18n/locales/fr.json",
+    "internal/tray/tray_systray.go",
+    "internal/tray/types.go",
+    "internal/update/apply.go",
+    "internal/update/apply_test.go",
+    "internal/update/asset.go",
+    "internal/update/asset_test.go",
+    "internal/update/checksum.go",
+    "internal/update/checksum_test.go",
+    "internal/update/download.go",
+    "internal/update/github.go",
+    "internal/update/github_test.go",
+    "internal/update/process_unix.go",
+    "internal/update/process_windows.go",
+    "internal/update/run_unix.go",
+    "internal/update/run_windows.go",
+    "internal/update/version.go",
+    "internal/update/version_test.go",
+    "main.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 220817,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3299584,
+    "output_tokens": 48962,
+    "api_call_count": 2
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
