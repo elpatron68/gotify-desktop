@@ -1,0 +1,5 @@
+Titel des tray Icons ist "Wails", soll "Gotify Desktop" sein
+
+---
+
+pipleline failed, überprüfe mit gh und behebe das problem
