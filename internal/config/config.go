@@ -33,7 +33,7 @@ type Config struct {
 }
 
 func Default() Config {
-	return Config{MinPriority: 0}
+	return Config{MinPriority: 0, HistoryMode: HistoryModeToasts}
 }
 
 // Dir returns the platform config directory for this app.
