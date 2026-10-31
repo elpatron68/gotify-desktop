@@ -9,23 +9,23 @@
 <div id="app">
     <section id="setup-view" class="view">
         <div class="setup-card">
-            <h1>Gotify Desktop</h1>
-            <p class="lede">Connect once with your Gotify credentials. Server URL and username are remembered; a client token is stored for the stream. The password is never saved.</p>
+            <h1 data-i18n="setup.title">Gotify Desktop</h1>
+            <p class="lede" data-i18n="setup.lede">Connect once with your Gotify credentials. Server URL and username are remembered; a client token is stored for the stream. The password is never saved.</p>
             <form id="setup-form">
                 <label>
-                    Server URL
-                    <input id="server-url" name="serverUrl" type="url" placeholder="https://gotify.example.com" required autocomplete="url"/>
+                    <span data-i18n="setup.server_url">Server URL</span>
+                    <input id="server-url" name="serverUrl" type="url" data-i18n="setup.server_placeholder" data-i18n-attr="placeholder" placeholder="https://gotify.example.com" required autocomplete="url"/>
                 </label>
                 <label>
-                    Username
+                    <span data-i18n="setup.username">Username</span>
                     <input id="username" name="username" type="text" required autocomplete="username"/>
                 </label>
                 <label>
-                    Password
+                    <span data-i18n="setup.password">Password</span>
                     <input id="password" name="password" type="password" required autocomplete="current-password"/>
                 </label>
                 <p id="error" class="error" hidden></p>
-                <button id="connect-btn" type="submit">Connect</button>
+                <button id="connect-btn" type="submit" data-i18n="setup.connect">Connect</button>
             </form>
             <p id="status-line" class="status"></p>
         </div>

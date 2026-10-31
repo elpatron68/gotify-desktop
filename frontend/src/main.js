@@ -1,6 +1,7 @@
 import './style.css';
-import {Connect, GetStatus, GetClientToken, GetUIPath} from '../wailsjs/go/main/App';
+import {Connect, GetStatus, GetClientToken, GetUIPath, GetLocale, GetI18nCatalog} from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
+import {applyDom, loadCatalog, t} from './i18n.js';
 
 // OS toasts are native ("Gotify Desktop"). Block WebView Notification so
 // nothing is attributed as "wails.localhost".
@@ -90,15 +91,15 @@ function updateStatusLine(status) {
   }
   const parts = [];
   if (status.configured) {
-    parts.push(status.connected ? 'Stream connected' : 'Stream disconnected');
+    parts.push(status.connected ? t('status.stream_connected') : t('status.stream_disconnected'));
   } else {
-    parts.push('Not configured');
+    parts.push(t('status.not_configured'));
   }
   if (status.notifyReady === false) {
-    parts.push('Notify: fallback');
+    parts.push(t('status.notify_fallback'));
   }
   if (status.notifyError) {
-    parts.push('Notify error: ' + status.notifyError);
+    parts.push(t('status.notify_error', {Error: status.notifyError}));
   }
   if (status.error) {
     parts.push(status.error);
@@ -142,7 +143,7 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   showError('');
   connectBtn.disabled = true;
-  connectBtn.textContent = 'Connecting…';
+  connectBtn.textContent = t('setup.connecting');
   const serverUrl = serverInput.value.trim();
   const username = usernameInput.value;
   const password = document.getElementById('password').value;
@@ -155,7 +156,7 @@ form.addEventListener('submit', async (event) => {
     showError(String(err));
   } finally {
     connectBtn.disabled = false;
-    connectBtn.textContent = 'Connect';
+    connectBtn.textContent = t('setup.connect');
   }
 });
 
@@ -174,8 +175,36 @@ EventsOn('show-gotify', (payload) => {
 EventsOn('gotify-message', () => {
   postToGotify({type: 'gotify-desktop-refresh'});
 });
+EventsOn('locale-changed', (payload) => {
+  let cat = {};
+  try {
+    cat = typeof payload?.catalog === 'string' ? JSON.parse(payload.catalog) : payload?.catalog || {};
+  } catch (_) {
+    cat = {};
+  }
+  loadCatalog({locale: payload?.locale || 'en', catalog: cat});
+  // Refresh dynamic status line in the new language.
+  GetStatus().then(updateStatusLine).catch(console.error);
+});
+
+async function initI18n() {
+  try {
+    const [loc, raw] = await Promise.all([GetLocale(), GetI18nCatalog()]);
+    let cat = {};
+    try {
+      cat = JSON.parse(raw || '{}');
+    } catch (_) {
+      cat = {};
+    }
+    loadCatalog({locale: loc, catalog: cat});
+  } catch (err) {
+    console.warn('i18n init failed, keeping English markup', err);
+    applyDom();
+  }
+}
 
 async function bootstrap() {
+  await initI18n();
   // Hide the Connect form until we know whether a session already exists.
   setupView.hidden = true;
   for (let i = 0; i < 8; i++) {
