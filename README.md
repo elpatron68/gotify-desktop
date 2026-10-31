@@ -10,7 +10,7 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 - **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
-- Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position), and on Wayland the reported position may be 0,0
+- Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position); under **Wayland** the reported position is often `0,0` (see below)
 - Embedded Gotify **web UI** (management) in an in-app iframe
 
 ## Requirements
@@ -58,7 +58,7 @@ Older docs mention `libappindicator3-1` (Unity-era). Prefer **Ayatana** on moder
 Fedora / RHEL-like:
 
 ```bash
-sudo dnf install libappindicator-gtk3
+sudo dnf install libappindicator-gtk3 gnome-shell-extension-appindicator
 ```
 
 Arch:
@@ -77,7 +77,8 @@ Having the library installed is necessary but not always sufficient. The shell m
 | **XFCE** | Panel → add “Status Tray Plugin” / “Indicator Plugin” |
 | **MATE** | Panel → “Notification Area” / “Indicator Applet Complete” |
 | **Cinnamon** | Usually works with the default panel tray |
-| **GNOME (45+)** | No classic tray by default. Install an extension such as [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) (`gnome-shell-extension-appindicator` on Ubuntu) and enable it |
+| **GNOME (45+)** | No classic tray by default. Install an extension such as [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) (`gnome-shell-extension-appindicator` on Ubuntu/Fedora) and **enable** it |
+| **Hyprland / Sway / wlroots** | No tray unless a panel hosts SNI (e.g. Waybar `tray` module). Same “vanished window” symptom without it |
 | **WSL / headless** | Often **no** tray host at all; run under a full Linux desktop session or WSLg with a DE that provides one |
 
 Ubuntu GNOME example:
@@ -87,6 +88,58 @@ sudo apt install libayatana-appindicator3-1 gnome-shell-extension-appindicator
 ```
 
 Then enable the extension (Extensions app, or GNOME Tweaks / `gnome-extensions enable …`), and log out/in if the icon still does not show.
+
+#### Fedora / GNOME: “app vanished after login”
+
+On a successful first connect (and whenever a saved session starts), Gotify Desktop **hides the main window and keeps running in the tray**. That is intentional — not a crash.
+
+Under stock **Fedora Workstation (GNOME)** there is no classic system tray. Without an indicator host the window simply disappears and there is nowhere obvious to reopen it.
+
+What to do:
+
+1. Install runtime + extension packages (see `dnf` above).
+2. Open **Extensions** (`gnome-extensions-app`) and enable **AppIndicator and KStatusNotifierItem Support**.
+3. If the toggle stays greyed out, user extensions may be disabled globally — turn them on, then enable the extension:
+
+```bash
+gsettings set org.gnome.shell disable-user-extensions false
+gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com
+```
+
+4. Restart Gotify Desktop. The tray icon appears in the **GNOME top bar** (top-right, near network/volume/clock) — not in the Activities app grid.
+5. Use the tray menu (**Open window** / **Quit**). To force a restart from a terminal:
+
+```bash
+pkill -f gotify-desktop; gotify-desktop &
+```
+
+Log out/in once if the icon still does not appear after enabling the extension.
+
+#### Wayland (e.g. CachyOS, Fedora Workstation, Plasma Wayland)
+
+Gotify Desktop is a GTK3 / WebKitGTK / Wails app. It generally runs under Wayland, but a few behaviours differ from X11:
+
+| Area | What to expect |
+|------|----------------|
+| **Window position** | Wayland often does not expose global coordinates to clients (`gtk_window_get_position` may always report `0,0`). **Size** and **maximised** still persist; restoring a previous screen position may be ignored or land at the compositor default. |
+| **Tray** | Same rules as above — the compositor/shell must host Status Notifier / AppIndicator. Plasma Wayland usually works out of the box; GNOME needs the AppIndicator extension; Hyprland/Sway need a panel with a tray module. |
+| **Notifications** | Desktop toasts go through `xdg-desktop-portal` and a session backend. Plasma/GNOME usually provide one; a minimal Hyprland setup may need an extra portal package or show `Notify: Fallback` / silent toasts until portals are configured. |
+| **Autostart** | XDG autostart still works, but starting before the session bus / portals are ready can delay tray or notifications once — restarting the app after login fixes that. |
+| **Clipboard / focus** | Occasional focus or clipboard quirks in the embedded UI (e.g. History → Copy) are possible; retry or refocus the window if a copy fails. |
+
+Quick environment check:
+
+```bash
+echo "$XDG_SESSION_TYPE"   # expect "wayland"
+echo "$WAYLAND_DISPLAY"
+echo "$XDG_CURRENT_DESKTOP"
+```
+
+Arch / CachyOS tray library (if needed):
+
+```bash
+sudo pacman -S libappindicator-gtk3
+```
 
 #### Build vs run
 
