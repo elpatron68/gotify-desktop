@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const appDirName = "gotify-desktop"
@@ -124,8 +125,36 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// Save writes config atomically.
+// saveMu serialises Save so concurrent writers cannot clobber config.json.tmp.
+var saveMu sync.Mutex
+
+// MergeWindowGeometry applies observed window geometry to cfg. While maximised,
+// existing normal bounds are kept (only missing ones are filled) and the
+// maximised flag is set; otherwise bounds are overwritten and maximised cleared.
+func MergeWindowGeometry(cfg Config, w, h, x, y int, maximised bool) Config {
+	w, h = ClampWindowSize(w, h)
+	if maximised {
+		cfg.WindowMaximised = true
+		if cfg.WindowWidth <= 0 || cfg.WindowHeight <= 0 {
+			cfg.WindowWidth, cfg.WindowHeight = w, h
+		}
+		if !cfg.WindowPosSet {
+			cfg.WindowX, cfg.WindowY = x, y
+			cfg.WindowPosSet = true
+		}
+		return cfg
+	}
+	cfg.WindowWidth, cfg.WindowHeight = w, h
+	cfg.WindowX, cfg.WindowY = x, y
+	cfg.WindowPosSet = true
+	cfg.WindowMaximised = false
+	return cfg
+}
+
+// Save writes config atomically. Safe for concurrent use.
 func Save(cfg Config) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
 	dir, err := Dir()
 	if err != nil {
 		return err

@@ -10,6 +10,7 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 - **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
+- Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position), and on Wayland the reported position may be 0,0
 - Embedded Gotify **web UI** (management) in an in-app iframe
 
 ## Requirements

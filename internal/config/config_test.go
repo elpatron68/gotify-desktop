@@ -157,3 +157,42 @@ func TestWindowPositionUsable(t *testing.T) {
 		t.Fatal("expected unusable")
 	}
 }
+
+func TestMergeWindowGeometryMaximisedPreservesBounds(t *testing.T) {
+	in := Config{WindowWidth: 900, WindowHeight: 700, WindowX: 50, WindowY: 60, WindowPosSet: true}
+	got := MergeWindowGeometry(in, 1920, 1080, 0, 0, true)
+	if !got.WindowMaximised {
+		t.Fatal("expected maximised")
+	}
+	if got.WindowWidth != 900 || got.WindowHeight != 700 || got.WindowX != 50 || got.WindowY != 60 || !got.WindowPosSet {
+		t.Fatalf("bounds changed: %+v", got)
+	}
+}
+
+func TestMergeWindowGeometryNormalUpdates(t *testing.T) {
+	in := Config{WindowWidth: 900, WindowHeight: 700, WindowX: 50, WindowY: 60, WindowPosSet: true, WindowMaximised: true}
+	got := MergeWindowGeometry(in, 1000, 800, 120, 130, false)
+	if got.WindowMaximised {
+		t.Fatal("expected not maximised")
+	}
+	if got.WindowWidth != 1000 || got.WindowHeight != 800 || got.WindowX != 120 || got.WindowY != 130 || !got.WindowPosSet {
+		t.Fatalf("unexpected: %+v", got)
+	}
+}
+
+func TestMergeWindowGeometryIncompleteThenFill(t *testing.T) {
+	// Only size known, position unset: maximised fills missing position, keeps size.
+	in := Config{WindowWidth: 900, WindowHeight: 700}
+	got := MergeWindowGeometry(in, 1920, 1080, 10, 20, true)
+	if got.WindowWidth != 900 || got.WindowHeight != 700 {
+		t.Fatalf("size overwritten: %+v", got)
+	}
+	if !got.WindowPosSet || got.WindowX != 10 || got.WindowY != 20 || !got.WindowMaximised {
+		t.Fatalf("position not filled: %+v", got)
+	}
+	// Nothing known: maximised fills everything (size clamped).
+	got = MergeWindowGeometry(Config{}, 100, 100, 5, 6, true)
+	if got.WindowWidth != MinWindowWidth || got.WindowHeight != MinWindowHeight || !got.WindowPosSet || got.WindowX != 5 || got.WindowY != 6 {
+		t.Fatalf("fill failed: %+v", got)
+	}
+}

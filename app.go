@@ -183,9 +183,6 @@ func (a *App) startup(ctx context.Context) {
 		applog.Printf("ws proxy start failed: %v", err)
 	}
 
-	// Apply saved geometry; window stays hidden (visibility is decided in domReady).
-	a.RestoreWindowState()
-
 	autostartOn := a.syncAutostartOnStartup()
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:      a.ShowWindow,
@@ -220,6 +217,9 @@ func (a *App) startup(ctx context.Context) {
 // Connect form despite a saved client token.
 func (a *App) domReady(ctx context.Context) {
 	a.ctx = ctx
+	// Apply saved geometry before any show/hide so maximise cannot race-show the
+	// window when starting to tray.
+	a.RestoreWindowState()
 	a.emitStatus()
 	a.mu.Lock()
 	configured := a.cfg.Configured()
@@ -240,7 +240,7 @@ func (a *App) domReady(ctx context.Context) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
-	a.SaveWindowState()
+	// Geometry is saved in beforeClose; the window is already destroyed here.
 	a.stopStream()
 	if a.tray != nil {
 		a.tray.Stop()
@@ -291,28 +291,15 @@ func (a *App) SaveWindowState() {
 	if a.ctx == nil {
 		return
 	}
+	if runtime.WindowIsMinimised(a.ctx) {
+		return
+	}
 	w, h := runtime.WindowGetSize(a.ctx)
 	x, y := runtime.WindowGetPosition(a.ctx)
 	maxed := runtime.WindowIsMaximised(a.ctx)
-	w, h = config.ClampWindowSize(w, h)
 
 	a.mu.Lock()
-	cfg := a.cfg
-	if maxed {
-		cfg.WindowMaximised = true
-		if cfg.WindowWidth <= 0 || cfg.WindowHeight <= 0 {
-			cfg.WindowWidth, cfg.WindowHeight = w, h
-		}
-		if !cfg.WindowPosSet {
-			cfg.WindowX, cfg.WindowY = x, y
-			cfg.WindowPosSet = true
-		}
-	} else {
-		cfg.WindowWidth, cfg.WindowHeight = w, h
-		cfg.WindowX, cfg.WindowY = x, y
-		cfg.WindowPosSet = true
-		cfg.WindowMaximised = false
-	}
+	cfg := config.MergeWindowGeometry(a.cfg, w, h, x, y, maxed)
 	if cfg == a.cfg {
 		a.mu.Unlock()
 		return
