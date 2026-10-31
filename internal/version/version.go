@@ -3,7 +3,7 @@
 package version
 
 // Version is the product version without a leading "v".
-const Version = "0.1.9"
+const Version = "0.1.13"
 
 // Author is shown in the About menu.
 const Author = "Markus F.J. Busche"
