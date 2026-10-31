@@ -7,12 +7,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/elpatron68/gotify-desktop/internal/applog"
 	"github.com/elpatron68/gotify-desktop/internal/auth"
 	"github.com/elpatron68/gotify-desktop/internal/autostart"
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/gotifyproxy"
+	"github.com/elpatron68/gotify-desktop/internal/history"
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
@@ -28,7 +30,7 @@ type AppStatus struct {
 	Connected     bool   `json:"connected"`
 	ServerURL     string `json:"serverUrl"`
 	Username      string `json:"username"`
-	View          string `json:"view"` // "setup" | "gotify"
+	View          string `json:"view"` // "setup" | "gotify" | "history"
 	Error         string `json:"error"`
 	MinPriority   int    `json:"minPriority"`
 	NotifyReady   bool   `json:"notifyReady"`
@@ -52,6 +54,7 @@ type App struct {
 	notify    *notify.Notifier
 	tray      *tray.Controller
 	proxy     *gotifyproxy.Proxy
+	history   *history.Store
 	autostart *autostart.Manager
 	trayIcon  []byte
 
@@ -153,6 +156,17 @@ func (a *App) startup(ctx context.Context) {
 		a.mu.Unlock()
 		applog.Printf("config loaded configured=%v server=%q user=%q token=%s",
 			cfg.Configured(), cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
+	}
+	a.mu.Lock()
+	a.cfg.HistoryMode = config.NormalizeHistoryMode(a.cfg.HistoryMode)
+	a.mu.Unlock()
+	if path, err := history.DefaultPath(); err == nil {
+		a.history = history.New(path)
+		if err := a.history.Load(); err != nil {
+			applog.Printf("history load: %v", err)
+		}
+	} else {
+		applog.Printf("history path: %v", err)
 	}
 	lang := i18n.Init(a.cfg.Locale)
 	applog.Printf("locale=%s (config=%q)", lang, a.cfg.Locale)
@@ -424,19 +438,41 @@ func (a *App) handleMessage(msg stream.Message) {
 	a.mu.Lock()
 	minP := a.cfg.MinPriority
 	lastID := a.cfg.LastMessageID
+	mode := config.NormalizeHistoryMode(a.cfg.HistoryMode)
 	a.mu.Unlock()
 
-	if !config.ShouldNotify(minP, msg.Priority) {
-		return
-	}
+	// 1. Dedup via last_message_id.
 	if msg.ID != 0 && lastID != 0 && msg.ID <= lastID {
 		return
 	}
+
+	// 2. Toast eligibility via min_priority.
+	eligible := config.ShouldNotify(minP, msg.Priority)
 
 	id := strconv.FormatUint(uint64(msg.ID), 10)
 	if id == "0" {
 		id = fmt.Sprintf("msg-%d", msg.AppID)
 	}
+	entry := history.Entry{
+		ID:         id,
+		Title:      msg.Title,
+		Body:       msg.Message,
+		Priority:   msg.Priority,
+		AppID:      msg.AppID,
+		ReceivedAt: time.Now(),
+		Notified:   eligible,
+	}
+
+	if !eligible {
+		// 4. Below min priority: history only in "all" mode (notified=false).
+		// LastMessageID is intentionally not advanced (unchanged behavior).
+		if mode == config.HistoryModeAll {
+			a.recordHistory(entry)
+		}
+		return
+	}
+
+	// 3. Eligible: toast as before, record history, advance LastMessageID.
 	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
 	// Refresh the iframe message list if it is open; OS toast is only via notify.Show.
 	if a.ctx != nil {
@@ -457,6 +493,7 @@ func (a *App) handleMessage(msg stream.Message) {
 			"Title": truncateRunes(msg.Title, 40),
 		}))
 	}
+	a.recordHistory(entry)
 
 	if msg.ID > 0 {
 		a.mu.Lock()
@@ -467,9 +504,127 @@ func (a *App) handleMessage(msg stream.Message) {
 	}
 }
 
+func (a *App) recordHistory(e history.Entry) {
+	if a.history == nil {
+		return
+	}
+	if err := a.history.Append(e); err != nil {
+		applog.Printf("history append: %v", err)
+		return
+	}
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "history-updated", nil)
+	}
+}
+
 // TestNotification sends a local test notification (helps diagnose desktop notify setup).
 func (a *App) TestNotification() error {
-	return a.notify.Show("test", i18n.T("notify.test_title"), i18n.T("notify.test_body"))
+	title := i18n.T("notify.test_title")
+	body := i18n.T("notify.test_body")
+	err := a.notify.Show("test", title, body)
+	now := time.Now()
+	a.recordHistory(history.Entry{
+		ID:         fmt.Sprintf("test-%d", now.Unix()),
+		Title:      title,
+		Body:       body,
+		ReceivedAt: now,
+		Notified:   true,
+	})
+	return err
+}
+
+// GetHistoryMode returns the normalized history capture mode ("toasts" | "all").
+func (a *App) GetHistoryMode() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return config.NormalizeHistoryMode(a.cfg.HistoryMode)
+}
+
+// SetHistoryMode persists the history capture mode.
+func (a *App) SetHistoryMode(mode string) {
+	mode = config.NormalizeHistoryMode(mode)
+	a.mu.Lock()
+	a.cfg.HistoryMode = mode
+	cfg := a.cfg
+	a.mu.Unlock()
+	if err := config.Save(cfg); err != nil {
+		applog.Printf("history mode save config: %v", err)
+	}
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "history-updated", nil)
+	}
+}
+
+// GetNotificationHistory returns stored entries filtered by the current mode.
+func (a *App) GetNotificationHistory() []history.Entry {
+	if a.history == nil {
+		return nil
+	}
+	toastsOnly := a.GetHistoryMode() == config.HistoryModeToasts
+	return a.history.List(toastsOnly)
+}
+
+// ClearNotificationHistory removes all stored history entries.
+func (a *App) ClearNotificationHistory() {
+	if a.history == nil {
+		return
+	}
+	if err := a.history.Clear(); err != nil {
+		applog.Printf("history clear: %v", err)
+	}
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "history-updated", nil)
+	}
+}
+
+// FormatHistoryEntryMarkdown returns the Markdown for the entry with the given id
+// (looked up in the unfiltered store), or "" if not found.
+func (a *App) FormatHistoryEntryMarkdown(id string) string {
+	if a.history == nil {
+		return ""
+	}
+	for _, e := range a.history.List(false) {
+		if e.ID == id {
+			return history.FormatMarkdown(e, time.Local)
+		}
+	}
+	return ""
+}
+
+// OpenNotificationHistory shows the window with the history view.
+func (a *App) OpenNotificationHistory() {
+	a.mu.Lock()
+	a.view = "history"
+	a.mu.Unlock()
+	if a.ctx != nil {
+		runtime.WindowShow(a.ctx)
+		runtime.WindowUnminimise(a.ctx)
+		runtime.EventsEmit(a.ctx, "show-history", nil)
+	}
+	a.emitStatus()
+}
+
+// LeaveNotificationHistory returns to the Gotify UI if configured, else setup.
+func (a *App) LeaveNotificationHistory() {
+	a.mu.Lock()
+	if a.cfg.Configured() {
+		a.view = "gotify"
+	} else {
+		a.view = "setup"
+	}
+	view := a.view
+	a.mu.Unlock()
+	if a.ctx != nil {
+		if view == "gotify" {
+			runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
+				"token":  a.GetClientToken(),
+				"uiPath": a.GetUIPath(),
+			})
+		} else {
+			runtime.EventsEmit(a.ctx, "show-setup", nil)
+		}
+	}
+	a.emitStatus()
 }
 
 // GetLocale returns the active UI language code (e.g. "en", "de").
