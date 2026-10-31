@@ -46,6 +46,8 @@ type Config struct {
 	WindowY         int  `json:"window_y,omitempty"`
 	WindowPosSet    bool `json:"window_pos_set,omitempty"`
 	WindowMaximised bool `json:"window_maximised,omitempty"`
+	// UpdateCheckedUnix is the Unix timestamp of the last automatic update check.
+	UpdateCheckedUnix int64 `json:"update_checked_unix,omitempty"`
 }
 
 func Default() Config {

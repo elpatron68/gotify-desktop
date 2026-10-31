@@ -9,6 +9,7 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 - **System tray** with open / recent notifications / settings / start-at-login / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
 - **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Send message**: open **Send message** from the tray (or the app menu on macOS), pick one of your Gotify applications, enter title / message / priority, and push to that app channel (app token stays in the Go backend)
+- **Automatic updates**: on startup (at most every 24 hours) and via **Check for Updates** in About, the app queries GitHub Releases, asks before download/install, verifies `SHA256SUMS`, then replaces the running package
 - **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
 - Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position); under **Wayland** the reported position is often `0,0` (see below)
@@ -212,6 +213,20 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main` and on 
 | Windows | NSIS setup (`*-setup.exe`) + portable `.exe` |
 | Linux | AppImage + raw binary (needs host WebKitGTK 4.1) |
 | macOS | DMG + `.app` zip (unsigned) |
+| All | `SHA256SUMS` (GNU sha256sum) attached to each GitHub Release |
+
+### Automatic updates
+
+Gotify Desktop checks `releases/latest` over HTTPS (User-Agent `gotify-desktop/<version>`). If a newer `major.minor.patch` is published, a dialog asks to install. After confirmation the matching asset and `SHA256SUMS` are downloaded, the hash is verified, and a helper process replaces the running install then relaunches.
+
+| Running as | Update package |
+|------------|----------------|
+| Linux AppImage (`APPIMAGE` set) | `gotify-desktop-linux-<arch>.AppImage` |
+| Linux binary | `gotify-desktop-linux-<arch>` |
+| Windows EXE | `gotify-desktop-windows-<arch>.exe` (not the NSIS setup) |
+| macOS `.app` | `gotify-desktop-darwin-<arch>.zip` |
+
+Development builds with version `0.0.0` skip checks. Releases without a matching asset show an error and the releases URL. There is no code signing yet; integrity is HTTPS plus the release checksum file. Manual check: **About → Check for Updates** (tray or app menu).
 
 Local helpers:
 
@@ -241,7 +256,7 @@ Settings are stored under the user config directory:
 - macOS: `~/Library/Application Support/gotify-desktop/config.json`
 - Windows: `%AppData%\gotify-desktop\config.json`
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`), `window_width` / `window_height` (0 or missing = defaults 1100×800; clamped to min 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`. Notification history is stored as `history.json` in the same directory.
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`), `window_width` / `window_height` (0 or missing = defaults 1100×800; clamped to min 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`, `update_checked_unix` (last automatic update check). Notification history is stored as `history.json` in the same directory.
 
 ### Internationalization
 

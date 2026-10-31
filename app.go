@@ -110,6 +110,9 @@ func (a *App) buildMenu() *menu.Menu {
 		menu.Text(i18n.Tf("menu.about_version", map[string]string{"Version": version.Version}), nil, func(_ *menu.CallbackData) {
 			a.OpenLatestRelease()
 		}),
+		menu.Text(i18n.T("menu.check_updates"), nil, func(_ *menu.CallbackData) {
+			a.CheckForUpdates()
+		}),
 		menu.Separator(),
 		menu.Text(i18n.T("menu.about_repo"), nil, func(_ *menu.CallbackData) { a.OpenRepository() }),
 	)
@@ -153,6 +156,8 @@ func trayLabels() tray.Labels {
 		AboutLicenseTooltip: i18n.T("tray.about_license_tooltip"),
 		AboutVersion:        i18n.Tf("tray.about_version", map[string]string{"Version": version.Version}),
 		AboutVersionTooltip: i18n.T("tray.about_version_tooltip"),
+		AboutCheckUpdates:         i18n.T("tray.about_check_updates"),
+		AboutCheckUpdatesTooltip:  i18n.T("tray.about_check_updates_tooltip"),
 		AboutRepo:           i18n.T("tray.about_repo"),
 		AboutRepoTooltip:    i18n.T("tray.about_repo_tooltip"),
 		Quit:             i18n.T("tray.quit"),
@@ -219,10 +224,11 @@ func (a *App) startup(ctx context.Context) {
 		OnSend:      a.OpenSendMessage,
 		OnAutostart: a.ToggleAutostart,
 		OnLanguage:  a.SetLocale,
-		OnAboutLicense: a.OpenLicense,
-		OnAboutVersion: a.OpenLatestRelease,
-		OnAboutRepo:    a.OpenRepository,
-		OnQuit:         a.Quit,
+		OnAboutLicense:      a.OpenLicense,
+		OnAboutVersion:      a.OpenLatestRelease,
+		OnAboutCheckUpdates: a.CheckForUpdates,
+		OnAboutRepo:         a.OpenRepository,
+		OnQuit:              a.Quit,
 	}, tray.Options{
 		AutostartEnabled: autostartOn,
 		Locale:           i18n.Locale(),
@@ -242,6 +248,7 @@ func (a *App) startup(ctx context.Context) {
 		applog.Printf("startup: setup view (not configured)")
 	}
 	a.emitStatus()
+	a.maybeAutoCheckUpdates()
 }
 
 // domReady re-emits session state after the frontend has subscribed to events.

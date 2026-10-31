@@ -7,6 +7,7 @@ import (
 
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
+	"github.com/elpatron68/gotify-desktop/internal/update"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -19,6 +20,16 @@ var assets embed.FS
 var appIcon []byte
 
 func main() {
+	if args, ok, err := update.ParseApplyArgs(os.Args); ok {
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := update.ApplyUpdate(args); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	// Allow the embedded UI (wails.localhost) to open ws://127.0.0.1 for the
 	// local Gotify stream bridge. Without this, WebView2 Local Network Access
 	// blocks the socket and the iframe never receives live messages.
@@ -31,6 +42,10 @@ func main() {
 		icon = appIcon
 	}
 	app := NewApp(icon)
+
+	if exe, err := os.Executable(); err == nil {
+		update.CleanupOldBackup(exe)
+	}
 
 	err := wails.Run(&options.App{
 		Title:             i18n.T("app.name"),
