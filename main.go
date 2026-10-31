@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -33,10 +34,10 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:             i18n.T("app.name"),
-		Width:             1100,
-		Height:            800,
-		MinWidth:          640,
-		MinHeight:         480,
+		Width:             config.DefaultWindowWidth,
+		Height:            config.DefaultWindowHeight,
+		MinWidth:          config.MinWindowWidth,
+		MinHeight:         config.MinWindowHeight,
 		HideWindowOnClose: true,
 		// Start hidden; DomReady shows the window only when setup is required.
 		StartHidden: true,
