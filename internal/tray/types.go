@@ -8,10 +8,11 @@ type Callbacks struct {
 	OnSend      func()
 	OnAutostart func()
 	OnLanguage  func(code string)
-	OnAboutLicense func()
-	OnAboutVersion func()
-	OnAboutRepo    func()
-	OnQuit         func()
+	OnAboutLicense      func()
+	OnAboutVersion      func()
+	OnAboutCheckUpdates func()
+	OnAboutRepo         func()
+	OnQuit              func()
 }
 
 // Options configures initial tray menu state.
@@ -50,10 +51,12 @@ type Labels struct {
 	AboutAuthor         string
 	AboutLicense        string
 	AboutLicenseTooltip string
-	AboutVersion        string
-	AboutVersionTooltip string
-	AboutRepo           string
-	AboutRepoTooltip    string
-	Quit                string
-	QuitTooltip         string
+	AboutVersion              string
+	AboutVersionTooltip       string
+	AboutCheckUpdates         string
+	AboutCheckUpdatesTooltip  string
+	AboutRepo                 string
+	AboutRepoTooltip          string
+	Quit                      string
+	QuitTooltip               string
 }

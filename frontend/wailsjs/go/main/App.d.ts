@@ -4,6 +4,8 @@ import {history} from '../models';
 import {main} from '../models';
 import {push} from '../models';
 
+export function CheckForUpdates():Promise<void>;
+
 export function ClearNotificationHistory():Promise<void>;
 
 export function Connect(arg1:string,arg2:string,arg3:string):Promise<void>;

@@ -23,13 +23,14 @@ type Controller struct {
 	autostartItem    *systray.MenuItem
 	languageItem     *systray.MenuItem
 	aboutItem        *systray.MenuItem
-	aboutAuthorItem  *systray.MenuItem
-	aboutLicenseItem *systray.MenuItem
-	aboutVersionItem *systray.MenuItem
-	aboutRepoItem    *systray.MenuItem
-	quitItem         *systray.MenuItem
-	langItems        map[string]*systray.MenuItem
-	started          bool
+	aboutAuthorItem       *systray.MenuItem
+	aboutLicenseItem      *systray.MenuItem
+	aboutVersionItem      *systray.MenuItem
+	aboutCheckUpdatesItem *systray.MenuItem
+	aboutRepoItem         *systray.MenuItem
+	quitItem              *systray.MenuItem
+	langItems             map[string]*systray.MenuItem
+	started               bool
 }
 
 // New creates a tray controller. icon should be PNG bytes (Linux) or ICO (Windows).
@@ -86,7 +87,8 @@ func (c *Controller) SetLabels(l Labels) {
 	status, open, settings, history := c.statusItem, c.openItem, c.settingsItem, c.historyItem
 	send, autostart, language := c.sendItem, c.autostartItem, c.languageItem
 	about, aboutAuthor, aboutLicense := c.aboutItem, c.aboutAuthorItem, c.aboutLicenseItem
-	aboutVersion, aboutRepo, quit := c.aboutVersionItem, c.aboutRepoItem, c.quitItem
+	aboutVersion, aboutCheckUpdates := c.aboutVersionItem, c.aboutCheckUpdatesItem
+	aboutRepo, quit := c.aboutRepoItem, c.quitItem
 	c.mu.Unlock()
 
 	if l.Tooltip != "" {
@@ -122,6 +124,9 @@ func (c *Controller) SetLabels(l Labels) {
 	}
 	if aboutVersion != nil && l.AboutVersion != "" {
 		aboutVersion.SetTitle(l.AboutVersion)
+	}
+	if aboutCheckUpdates != nil && l.AboutCheckUpdates != "" {
+		aboutCheckUpdates.SetTitle(l.AboutCheckUpdates)
 	}
 	if aboutRepo != nil && l.AboutRepo != "" {
 		aboutRepo.SetTitle(l.AboutRepo)
@@ -188,6 +193,7 @@ func (c *Controller) onReady() {
 	aboutAuthor.Disable()
 	aboutLicense := about.AddSubMenuItem(or(l.AboutLicense, "License"), or(l.AboutLicenseTooltip, "Open the license file"))
 	aboutVersion := about.AddSubMenuItem(or(l.AboutVersion, "Version"), or(l.AboutVersionTooltip, "Open the latest release"))
+	aboutCheckUpdates := about.AddSubMenuItem(or(l.AboutCheckUpdates, "Check for updates"), or(l.AboutCheckUpdatesTooltip, "Check for a newer version"))
 	aboutRepo := about.AddSubMenuItem(or(l.AboutRepo, "Open repository"), or(l.AboutRepoTooltip, "Open the project page"))
 
 	systray.AddSeparator()
@@ -205,6 +211,7 @@ func (c *Controller) onReady() {
 	c.aboutAuthorItem = aboutAuthor
 	c.aboutLicenseItem = aboutLicense
 	c.aboutVersionItem = aboutVersion
+	c.aboutCheckUpdatesItem = aboutCheckUpdates
 	c.aboutRepoItem = aboutRepo
 	c.quitItem = quit
 	c.langItems = langItems
@@ -240,6 +247,10 @@ func (c *Controller) onReady() {
 			case <-aboutVersion.ClickedCh:
 				if c.cb.OnAboutVersion != nil {
 					c.cb.OnAboutVersion()
+				}
+			case <-aboutCheckUpdates.ClickedCh:
+				if c.cb.OnAboutCheckUpdates != nil {
+					c.cb.OnAboutCheckUpdates()
 				}
 			case <-aboutRepo.ClickedCh:
 				if c.cb.OnAboutRepo != nil {

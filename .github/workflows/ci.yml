@@ -212,6 +212,14 @@ jobs:
           pattern: gotify-desktop-*
           merge-multiple: true
 
+      - name: Generate SHA256SUMS
+        working-directory: release-assets
+        run: |
+          # GNU sha256sum format: "<hash>  <filename>" (two spaces).
+          rm -f SHA256SUMS
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
