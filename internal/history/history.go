@@ -72,10 +72,15 @@ func (s *Store) Load() error {
 }
 
 func (s *Store) Save() error {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saveLocked()
+}
+
+// saveLocked writes the current entries to disk. Caller must hold s.mu.
+func (s *Store) saveLocked() error {
 	f := fileShape{Entries: append([]Entry(nil), s.entries...)}
 	path := s.path
-	s.mu.RUnlock()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
@@ -92,19 +97,19 @@ func (s *Store) Save() error {
 
 func (s *Store) Append(e Entry) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.entries = append([]Entry{e}, s.entries...)
 	if len(s.entries) > MaxEntries {
 		s.entries = s.entries[:MaxEntries]
 	}
-	s.mu.Unlock()
-	return s.Save()
+	return s.saveLocked()
 }
 
 func (s *Store) Clear() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.entries = nil
-	s.mu.Unlock()
-	return s.Save()
+	return s.saveLocked()
 }
 
 func (s *Store) List(toastsOnly bool) []Entry {

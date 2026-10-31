@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -73,6 +74,45 @@ func TestLoadMissingOrCorrupt(t *testing.T) {
 	}
 	if len(s2.List(false)) != 0 {
 		t.Fatal("corrupt should yield empty")
+	}
+}
+
+func TestConcurrentAppendPersistsAll(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	s := New(path)
+	const n = 50
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			e := Entry{ID: fmt.Sprintf("%d", i), Title: "t", Body: "b", ReceivedAt: time.Now(), Notified: true}
+			if err := s.Append(e); err != nil {
+				t.Errorf("append %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	got := s.List(false)
+	if len(got) != n {
+		t.Fatalf("in-memory len=%d want %d", len(got), n)
+	}
+	seen := make(map[string]bool, n)
+	for _, e := range got {
+		seen[e.ID] = true
+	}
+	if len(seen) != n {
+		t.Fatalf("in-memory unique=%d want %d", len(seen), n)
+	}
+
+	s2 := New(path)
+	if err := s2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	disk := s2.List(false)
+	if len(disk) != n {
+		t.Fatalf("disk len=%d want %d", len(disk), n)
 	}
 }
 
