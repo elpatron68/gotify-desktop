@@ -33,6 +33,22 @@
     <section id="gotify-view" class="view" hidden>
         <iframe id="gotify-frame" title="Gotify" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"></iframe>
     </section>
+    <section id="history-view" class="view" hidden>
+        <header class="history-header">
+            <button type="button" id="history-back" data-i18n="history.back">Back</button>
+            <h1 data-i18n="history.title">Recent notifications</h1>
+            <div class="history-actions">
+                <label class="history-mode" data-i18n="history.mode_toasts_hint" data-i18n-attr="title" title="Show all messages, not only toast notifications">
+                    <input type="checkbox" id="history-mode-all"/>
+                    <span data-i18n="history.mode_all">All messages</span>
+                </label>
+                <button type="button" id="history-clear" data-i18n="history.clear">Clear</button>
+            </div>
+        </header>
+        <p id="history-empty" class="history-empty" data-i18n="history.empty" hidden>No notifications yet.</p>
+        <ul id="history-list" class="history-list"></ul>
+        <p id="history-toast" class="history-toast" hidden></p>
+    </section>
 </div>
 <script src="./src/main.js" type="module"></script>
 </body>

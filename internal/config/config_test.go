@@ -56,6 +56,34 @@ func TestStreamURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeHistoryMode(t *testing.T) {
+	if NormalizeHistoryMode("") != HistoryModeToasts {
+		t.Fatal()
+	}
+	if NormalizeHistoryMode("ALL") != HistoryModeAll {
+		t.Fatal()
+	}
+	if NormalizeHistoryMode("nope") != HistoryModeToasts {
+		t.Fatal()
+	}
+}
+
+func TestDefaultHistoryModeToasts(t *testing.T) {
+	if Default().HistoryMode != HistoryModeToasts {
+		t.Fatalf("Default().HistoryMode=%q want %q", Default().HistoryMode, HistoryModeToasts)
+	}
+
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.HistoryMode != HistoryModeToasts {
+		t.Fatalf("Load missing file HistoryMode=%q want %q", loaded.HistoryMode, HistoryModeToasts)
+	}
+}
+
 func TestShouldNotify(t *testing.T) {
 	if !ShouldNotify(0, 0) {
 		t.Fatal("priority 0 should notify when min is 0")

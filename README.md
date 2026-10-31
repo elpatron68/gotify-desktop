@@ -6,7 +6,8 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 
 - Connect with Gotify username/password; the app creates a **client token** (password is not stored)
 - Native desktop **notifications** via Gotify WebSocket `/stream`
-- **System tray** with open / settings / start-at-login / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
+- **System tray** with open / recent notifications / settings / start-at-login / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
+- **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
 - Embedded Gotify **web UI** (management) in an in-app iframe
@@ -185,7 +186,7 @@ Settings are stored under the user config directory:
 - macOS: `~/Library/Application Support/gotify-desktop/config.json`
 - Windows: `%AppData%\gotify-desktop\config.json`
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language).
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`). Notification history is stored as `history.json` in the same directory.
 
 ### Internationalization
 

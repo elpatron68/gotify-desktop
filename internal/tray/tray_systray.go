@@ -18,6 +18,7 @@ type Controller struct {
 	statusItem    *systray.MenuItem
 	openItem      *systray.MenuItem
 	settingsItem  *systray.MenuItem
+	historyItem   *systray.MenuItem
 	autostartItem *systray.MenuItem
 	languageItem  *systray.MenuItem
 	quitItem      *systray.MenuItem
@@ -76,7 +77,7 @@ func (c *Controller) SetAutostartChecked(enabled bool) {
 func (c *Controller) SetLabels(l Labels) {
 	c.mu.Lock()
 	c.opts.Labels = l
-	status, open, settings := c.statusItem, c.openItem, c.settingsItem
+	status, open, settings, history := c.statusItem, c.openItem, c.settingsItem, c.historyItem
 	autostart, language, quit := c.autostartItem, c.languageItem, c.quitItem
 	c.mu.Unlock()
 
@@ -89,6 +90,9 @@ func (c *Controller) SetLabels(l Labels) {
 	}
 	if settings != nil && l.Settings != "" {
 		settings.SetTitle(l.Settings)
+	}
+	if history != nil && l.History != "" {
+		history.SetTitle(l.History)
 	}
 	if autostart != nil && l.Autostart != "" {
 		autostart.SetTitle(l.Autostart)
@@ -138,6 +142,7 @@ func (c *Controller) onReady() {
 	systray.AddSeparator()
 	open := systray.AddMenuItem(or(l.Open, "Open window"), or(l.OpenTooltip, "Show the Gotify window"))
 	settings := systray.AddMenuItem(or(l.Settings, "Settings"), or(l.SettingsTooltip, "Open connection settings"))
+	history := systray.AddMenuItem(or(l.History, "Recent notifications"), or(l.HistoryTooltip, "Show recent notifications"))
 	autostart := systray.AddMenuItemCheckbox(
 		or(l.Autostart, "Start at login"),
 		or(l.AutostartTooltip, "Launch Gotify Desktop when you log in"),
@@ -158,6 +163,7 @@ func (c *Controller) onReady() {
 	c.statusItem = status
 	c.openItem = open
 	c.settingsItem = settings
+	c.historyItem = history
 	c.autostartItem = autostart
 	c.languageItem = language
 	c.quitItem = quit
@@ -174,6 +180,10 @@ func (c *Controller) onReady() {
 			case <-settings.ClickedCh:
 				if c.cb.OnSettings != nil {
 					c.cb.OnSettings()
+				}
+			case <-history.ClickedCh:
+				if c.cb.OnHistory != nil {
+					c.cb.OnHistory()
 				}
 			case <-autostart.ClickedCh:
 				if c.cb.OnAutostart != nil {

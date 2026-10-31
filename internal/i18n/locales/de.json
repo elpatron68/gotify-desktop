@@ -4,6 +4,7 @@
 
   "menu.show_window": "Fenster anzeigen",
   "menu.settings": "Einstellungen",
+  "menu.recent_notifications": "Letzte Benachrichtigungen",
   "menu.test_notification": "Testbenachrichtigung",
   "menu.start_at_login": "Beim Anmelden starten",
   "menu.language": "Sprache",
@@ -16,6 +17,8 @@
   "tray.open_tooltip": "Gotify-Fenster anzeigen",
   "tray.settings": "Einstellungen",
   "tray.settings_tooltip": "Verbindungseinstellungen öffnen",
+  "tray.history": "Letzte Benachrichtigungen",
+  "tray.history_tooltip": "Letzte Benachrichtigungen anzeigen",
   "tray.autostart": "Beim Anmelden starten",
   "tray.autostart_tooltip": "Gotify Desktop beim Anmelden starten",
   "tray.language": "Sprache",
@@ -46,5 +49,15 @@
   "status.stream_disconnected": "Stream getrennt",
   "status.not_configured": "Nicht konfiguriert",
   "status.notify_fallback": "Notify: Fallback",
-  "status.notify_error": "Notify-Fehler: {{.Error}}"
+  "status.notify_error": "Notify-Fehler: {{.Error}}",
+
+  "history.title": "Letzte Benachrichtigungen",
+  "history.back": "Zurück",
+  "history.mode_all": "Alle Nachrichten",
+  "history.mode_toasts_hint": "Alle Nachrichten anzeigen, nicht nur Toast-Benachrichtigungen",
+  "history.clear": "Löschen",
+  "history.empty": "Noch keine Benachrichtigungen.",
+  "history.copy": "Kopieren",
+  "history.copied": "Kopiert",
+  "history.copy_failed": "Kopieren fehlgeschlagen"
 }

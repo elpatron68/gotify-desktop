@@ -4,6 +4,7 @@
 
   "menu.show_window": "Show Window",
   "menu.settings": "Settings",
+  "menu.recent_notifications": "Recent Notifications",
   "menu.test_notification": "Test Notification",
   "menu.start_at_login": "Start at Login",
   "menu.language": "Language",
@@ -16,6 +17,8 @@
   "tray.open_tooltip": "Show the Gotify window",
   "tray.settings": "Settings",
   "tray.settings_tooltip": "Open connection settings",
+  "tray.history": "Recent notifications",
+  "tray.history_tooltip": "Show recent notifications",
   "tray.autostart": "Start at login",
   "tray.autostart_tooltip": "Launch Gotify Desktop when you log in",
   "tray.language": "Language",
@@ -46,5 +49,15 @@
   "status.stream_disconnected": "Stream disconnected",
   "status.not_configured": "Not configured",
   "status.notify_fallback": "Notify: fallback",
-  "status.notify_error": "Notify error: {{.Error}}"
+  "status.notify_error": "Notify error: {{.Error}}",
+
+  "history.title": "Recent notifications",
+  "history.back": "Back",
+  "history.mode_all": "All messages",
+  "history.mode_toasts_hint": "Show all messages, not only toast notifications",
+  "history.clear": "Clear",
+  "history.empty": "No notifications yet.",
+  "history.copy": "Copy",
+  "history.copied": "Copied",
+  "history.copy_failed": "Copy failed"
 }

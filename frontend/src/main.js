@@ -1,6 +1,19 @@
 import './style.css';
-import {Connect, GetStatus, GetClientToken, GetUIPath, GetLocale, GetI18nCatalog} from '../wailsjs/go/main/App';
-import {EventsOn} from '../wailsjs/runtime/runtime';
+import {
+  Connect,
+  GetStatus,
+  GetClientToken,
+  GetUIPath,
+  GetLocale,
+  GetI18nCatalog,
+  GetNotificationHistory,
+  GetHistoryMode,
+  SetHistoryMode,
+  ClearNotificationHistory,
+  LeaveNotificationHistory,
+  FormatHistoryEntryMarkdown,
+} from '../wailsjs/go/main/App';
+import {ClipboardSetText, EventsOn} from '../wailsjs/runtime/runtime';
 import {applyDom, loadCatalog, t} from './i18n.js';
 
 // OS toasts are native ("Gotify Desktop"). Block WebView Notification so
@@ -16,6 +29,11 @@ try {
 
 const setupView = document.getElementById('setup-view');
 const gotifyView = document.getElementById('gotify-view');
+const historyView = document.getElementById('history-view');
+const historyList = document.getElementById('history-list');
+const historyEmpty = document.getElementById('history-empty');
+const historyToast = document.getElementById('history-toast');
+const historyModeAll = document.getElementById('history-mode-all');
 const frame = document.getElementById('gotify-frame');
 const form = document.getElementById('setup-form');
 const errorEl = document.getElementById('error');
@@ -24,7 +42,7 @@ const connectBtn = document.getElementById('connect-btn');
 const serverInput = document.getElementById('server-url');
 const usernameInput = document.getElementById('username');
 
-/** @type {'setup'|'gotify'|null} */
+/** @type {'setup'|'gotify'|'history'|null} */
 let currentView = null;
 let bootstrapped = false;
 
@@ -51,6 +69,7 @@ function showSetup(status) {
   currentView = 'setup';
   setupView.hidden = false;
   gotifyView.hidden = true;
+  historyView.hidden = true;
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
   }
@@ -72,13 +91,14 @@ async function showGotify(payload, {forceReload = false} = {}) {
   }
   applySession(token);
 
-  const alreadyShowing = currentView === 'gotify' && !gotifyView.hidden;
   currentView = 'gotify';
   setupView.hidden = true;
   gotifyView.hidden = false;
+  historyView.hidden = true;
 
   // Do not reload the iframe on every stream status tick — that wiped the Gotify session.
-  if (!forceReload && alreadyShowing && frame.src && !frame.src.endsWith('about:blank')) {
+  // Also skip when returning from history: the iframe is still loaded (showSetup blanks it).
+  if (!forceReload && frame.src && !frame.src.endsWith('about:blank')) {
     return;
   }
   frame.src = `${uiPath}${uiPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
@@ -109,6 +129,16 @@ function updateStatusLine(status) {
 
 async function applyStatus(status) {
   if (!status) return;
+  // History is left only via Back (show-gotify / show-setup events), never by a status tick.
+  if (currentView === 'history') {
+    updateStatusLine(status);
+    return;
+  }
+  if (status.view === 'history') {
+    updateStatusLine(status);
+    await showHistory();
+    return;
+  }
   // Once we know a saved session exists, never fall back to the Connect form
   // from a late/racy status tick — Settings is the only way back.
   if (status.view === 'gotify' && status.configured) {
@@ -130,6 +160,108 @@ async function applyStatus(status) {
   }
   updateStatusLine(status);
 }
+
+let historyToastTimer = null;
+
+// Prefer the web clipboard; fall back to the Wails runtime when the webview blocks it.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch (err) {
+    console.warn('navigator.clipboard failed, falling back to Wails ClipboardSetText', err);
+  }
+  const ok = await ClipboardSetText(text);
+  if (ok === false) {
+    throw new Error('ClipboardSetText returned false');
+  }
+}
+
+function flashHistoryToast(msg) {
+  historyToast.textContent = msg;
+  historyToast.hidden = false;
+  clearTimeout(historyToastTimer);
+  historyToastTimer = setTimeout(() => {
+    historyToast.hidden = true;
+  }, 1500);
+}
+
+function renderHistory(entries) {
+  historyList.textContent = '';
+  const list = entries || [];
+  historyEmpty.hidden = list.length > 0;
+  for (const entry of list) {
+    const li = document.createElement('li');
+    li.className = 'history-item';
+
+    const main = document.createElement('div');
+    main.className = 'history-item-main';
+
+    const time = document.createElement('div');
+    time.className = 'history-time';
+    const when = new Date(entry.received_at);
+    time.textContent = Number.isNaN(when.getTime()) ? '' : when.toLocaleString();
+
+    const title = document.createElement('p');
+    title.className = 'history-title';
+    title.textContent = entry.title || '';
+
+    const body = document.createElement('p');
+    body.className = 'history-body';
+    body.textContent = entry.body || '';
+
+    main.append(time, title, body);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.textContent = t('history.copy');
+    copyBtn.addEventListener('click', async () => {
+      try {
+        const md = await FormatHistoryEntryMarkdown(entry.id);
+        await copyText(md);
+        flashHistoryToast(t('history.copied'));
+      } catch (err) {
+        console.error(err);
+        flashHistoryToast(t('history.copy_failed'));
+      }
+    });
+
+    li.append(main, copyBtn);
+    historyList.append(li);
+  }
+}
+
+async function refreshHistory() {
+  renderHistory(await GetNotificationHistory());
+}
+
+async function showHistory() {
+  currentView = 'history';
+  setupView.hidden = true;
+  gotifyView.hidden = true;
+  historyView.hidden = false;
+  try {
+    historyModeAll.checked = (await GetHistoryMode()) === 'all';
+    await refreshHistory();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+historyModeAll.addEventListener('change', async () => {
+  try {
+    await SetHistoryMode(historyModeAll.checked ? 'all' : 'toasts');
+    await refreshHistory();
+  } catch (err) {
+    console.error(err);
+  }
+});
+document.getElementById('history-clear').addEventListener('click', () => {
+  ClearNotificationHistory().then(refreshHistory).catch(console.error);
+});
+document.getElementById('history-back').addEventListener('click', () => {
+  LeaveNotificationHistory().catch(console.error);
+});
 
 function postToGotify(msg) {
   try {
@@ -167,9 +299,17 @@ EventsOn('show-setup', () => {
   bootstrapped = false;
   GetStatus().then(showSetup).catch(console.error);
 });
+EventsOn('show-history', () => {
+  showHistory().catch(console.error);
+});
+EventsOn('history-updated', () => {
+  if (currentView === 'history') {
+    refreshHistory().catch(console.error);
+  }
+});
 EventsOn('show-gotify', (payload) => {
   bootstrapped = true;
-  showGotify(payload, {forceReload: true}).catch(console.error);
+  showGotify(payload, {forceReload: false}).catch(console.error);
 });
 // Native OS toasts come from Go only. This event only refreshes the iframe list.
 EventsOn('gotify-message', () => {
@@ -185,6 +325,9 @@ EventsOn('locale-changed', (payload) => {
   loadCatalog({locale: payload?.locale || 'en', catalog: cat});
   // Refresh dynamic status line in the new language.
   GetStatus().then(updateStatusLine).catch(console.error);
+  if (currentView === 'history') {
+    refreshHistory().catch(console.error);
+  }
 });
 
 async function initI18n() {
