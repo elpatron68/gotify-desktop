@@ -13,7 +13,7 @@ import {
   LeaveNotificationHistory,
   FormatHistoryEntryMarkdown,
 } from '../wailsjs/go/main/App';
-import {EventsOn} from '../wailsjs/runtime/runtime';
+import {ClipboardSetText, EventsOn} from '../wailsjs/runtime/runtime';
 import {applyDom, loadCatalog, t} from './i18n.js';
 
 // OS toasts are native ("Gotify Desktop"). Block WebView Notification so
@@ -91,14 +91,14 @@ async function showGotify(payload, {forceReload = false} = {}) {
   }
   applySession(token);
 
-  const alreadyShowing = currentView === 'gotify' && !gotifyView.hidden;
   currentView = 'gotify';
   setupView.hidden = true;
   gotifyView.hidden = false;
   historyView.hidden = true;
 
   // Do not reload the iframe on every stream status tick — that wiped the Gotify session.
-  if (!forceReload && alreadyShowing && frame.src && !frame.src.endsWith('about:blank')) {
+  // Also skip when returning from history: the iframe is still loaded (showSetup blanks it).
+  if (!forceReload && frame.src && !frame.src.endsWith('about:blank')) {
     return;
   }
   frame.src = `${uiPath}${uiPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
@@ -163,6 +163,20 @@ async function applyStatus(status) {
 
 let historyToastTimer = null;
 
+// Prefer the web clipboard; fall back to the Wails runtime when the webview blocks it.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch (err) {
+    console.warn('navigator.clipboard failed, falling back to Wails ClipboardSetText', err);
+  }
+  const ok = await ClipboardSetText(text);
+  if (ok === false) {
+    throw new Error('ClipboardSetText returned false');
+  }
+}
+
 function flashHistoryToast(msg) {
   historyToast.textContent = msg;
   historyToast.hidden = false;
@@ -204,7 +218,7 @@ function renderHistory(entries) {
     copyBtn.addEventListener('click', async () => {
       try {
         const md = await FormatHistoryEntryMarkdown(entry.id);
-        await navigator.clipboard.writeText(md);
+        await copyText(md);
         flashHistoryToast(t('history.copied'));
       } catch (err) {
         console.error(err);
@@ -295,7 +309,7 @@ EventsOn('history-updated', () => {
 });
 EventsOn('show-gotify', (payload) => {
   bootstrapped = true;
-  showGotify(payload, {forceReload: true}).catch(console.error);
+  showGotify(payload, {forceReload: false}).catch(console.error);
 });
 // Native OS toasts come from Go only. This event only refreshes the iframe list.
 EventsOn('gotify-message', () => {

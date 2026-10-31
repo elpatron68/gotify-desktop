@@ -54,7 +54,7 @@
   "history.title": "Letzte Benachrichtigungen",
   "history.back": "Zurück",
   "history.mode_all": "Alle Nachrichten",
-  "history.mode_toasts_hint": "Nur Toast-Benachrichtigungen anzeigen",
+  "history.mode_toasts_hint": "Alle Nachrichten anzeigen, nicht nur Toast-Benachrichtigungen",
   "history.clear": "Löschen",
   "history.empty": "Noch keine Benachrichtigungen.",
   "history.copy": "Kopieren",

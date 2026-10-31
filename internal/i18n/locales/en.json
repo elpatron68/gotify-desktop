@@ -54,7 +54,7 @@
   "history.title": "Recent notifications",
   "history.back": "Back",
   "history.mode_all": "All messages",
-  "history.mode_toasts_hint": "Show only toast notifications",
+  "history.mode_toasts_hint": "Show all messages, not only toast notifications",
   "history.clear": "Clear",
   "history.empty": "No notifications yet.",
   "history.copy": "Copy",

@@ -54,7 +54,7 @@
   "history.title": "Notificaciones recientes",
   "history.back": "Atrás",
   "history.mode_all": "Todos los mensajes",
-  "history.mode_toasts_hint": "Mostrar solo notificaciones emergentes",
+  "history.mode_toasts_hint": "Mostrar todos los mensajes, no solo las notificaciones emergentes",
   "history.clear": "Borrar",
   "history.empty": "Aún no hay notificaciones.",
   "history.copy": "Copiar",
