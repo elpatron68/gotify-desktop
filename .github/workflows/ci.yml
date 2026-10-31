@@ -85,13 +85,15 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            # Numeric only: NSIS VIProductVersion rejects suffixes like -dev.sha
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Patch wails.json productVersion
         shell: bash
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
+          WAILS_JSON: wails.json
         run: |
           chmod +x packaging/set-version.sh
           ./packaging/set-version.sh
@@ -215,15 +217,5 @@ jobs:
         with:
           files: release-assets/*
           generate_release_notes: true
-          body: |
-            ## Downloads
-            | Platform | Files |
-            |----------|--------|
-            | Windows | `gotify-desktop-windows-amd64-setup.exe` (NSIS), `.exe` |
-            | Linux | `gotify-desktop-linux-amd64.AppImage`, binary |
-            | macOS | `gotify-desktop-darwin-arm64.dmg`, `.zip` |
-
-            Linux AppImage needs WebKitGTK 4.1 on the host (`libwebkit2gtk-4.1-0`).
-            macOS builds are unsigned (Gatekeeper may warn until notarized).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
