@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M690PB351RAVZ32Z50PEYBVR",
+  "session_id": "a67d5417-3def-4362-9048-b0afaaa4fba7",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-31T12:59:28.428039047Z",
+  "branch": "feat/auto-update",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "frontend/wailsjs/go/main/App.d.ts",
+    "frontend/wailsjs/go/main/App.js"
+  ],
+  "agent": "Cursor",
+  "model": "default",
+  "turn_id": "50b2d611013f",
+  "checkpoint_transcript_start": 61,
+  "transcript_lines_at_start": 61,
+  "compact_transcript_start": 6,
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}
