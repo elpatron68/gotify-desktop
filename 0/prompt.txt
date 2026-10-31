@@ -1,0 +1,38 @@
+Wails v3.0.0 is the stable release for desktop applications on Windows, macOS and Linux. Can we upgrade Wails to v3?
+
+---
+
+Plane Wails Upgrade (in neuem Branch)
+
+---
+
+Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.
+
+To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.
+
+---
+
+Haben wir alles bei der Migration bedacht? https://wails.io/migration/v2-to-v3/
+
+---
+
+überprüfe das gesamte projekt auf redundanten oder ungenutzten Code
+
+---
+
+```/home/markus/.cursor/projects/home-markus-repos-gotify-desktop/terminals/1.txt:144:144
+[markus@cachyos-x8664 gotify-desktop]$ export PATH="/home/markus/.local/go/bin:$HOME/go/bin:$PATH"; wails build -tags webkit2_41 2>&1
+```
+ funktioniert das so noch? oder neue syntax für wails 3?
+
+---
+
+/home/markus/.cursor/projects/home-markus-repos-gotify-desktop/terminals/1.txt:L168-L229
+
+---
+
+Alle Funktionen erfolgreich getestet.
+
+---
+
+commit, pr, merge, dann tag increase. Ist Minor increase auf 0.2.0 gerechtfertigt/sinnvoll?

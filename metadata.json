@@ -1,0 +1,74 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M692MABDC8Z556DT8NJD33VH",
+  "strategy": "manual-commit",
+  "branch": "wails-v3",
+  "checkpoints_count": 5,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "README.md",
+    "app.go",
+    "app_update.go",
+    "build/README.md",
+    "build/darwin/Info.dev.plist",
+    "build/darwin/Info.plist",
+    "build/windows/icon.ico",
+    "build/windows/info.json",
+    "build/windows/installer/project.nsi",
+    "build/windows/installer/wails_tools.nsh",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/main.js",
+    "frontend/wailsjs/go/main/App.d.ts",
+    "frontend/wailsjs/go/main/App.js",
+    "frontend/wailsjs/go/models.ts",
+    "frontend/wailsjs/runtime/package.json",
+    "frontend/wailsjs/runtime/runtime.d.ts",
+    "frontend/wailsjs/runtime/runtime.js",
+    "go.mod",
+    "go.sum",
+    "icon_darwin.go",
+    "icon_windows.go",
+    "internal/notify/notify.go",
+    "internal/tray/tray_darwin.go",
+    "internal/tray/tray_systray.go",
+    "internal/tray/types.go",
+    "internal/version/version.go",
+    "main.go",
+    "packaging/darwin/build-dmg.sh",
+    "packaging/linux/build-appimage.sh",
+    "packaging/set-version.sh",
+    "wails.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 162060,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1042560,
+    "output_tokens": 18979,
+    "api_call_count": 5
+  },
+  "redaction": {
+    "replacements": 1,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 1,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
