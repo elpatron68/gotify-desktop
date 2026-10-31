@@ -12,6 +12,7 @@ import {
   ClearNotificationHistory,
   LeaveNotificationHistory,
   FormatHistoryEntryMarkdown,
+  SaveWindowState,
 } from '../wailsjs/go/main/App';
 import {ClipboardSetText, EventsOn} from '../wailsjs/runtime/runtime';
 import {applyDom, loadCatalog, t} from './i18n.js';
@@ -377,5 +378,28 @@ async function bootstrap() {
     showSetup(null);
   }
 }
+
+let saveGeoTimer = null;
+function scheduleSaveWindowState() {
+  clearTimeout(saveGeoTimer);
+  saveGeoTimer = setTimeout(() => {
+    SaveWindowState().catch((err) => console.warn('SaveWindowState', err));
+  }, 400);
+}
+
+window.addEventListener('resize', scheduleSaveWindowState);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    clearTimeout(saveGeoTimer);
+    SaveWindowState().catch(() => {});
+  }
+});
+
+// Wails has no window-moved DOM event: poll while visible. Go no-ops if unchanged.
+setInterval(() => {
+  if (document.visibilityState === 'visible') {
+    SaveWindowState().catch(() => {});
+  }
+}, 2000);
 
 bootstrap().catch(console.error);
