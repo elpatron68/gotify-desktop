@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,9 +20,8 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
 	"github.com/elpatron68/gotify-desktop/internal/version"
-	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 // AppStatus is exposed to the frontend.
@@ -42,7 +40,9 @@ type AppStatus struct {
 
 // App is the Wails-bound application core.
 type App struct {
-	ctx context.Context
+	wailsApp *application.App
+	window   *application.WebviewWindow
+	notifySvc *notifications.NotificationService
 
 	mu        sync.Mutex
 	cfg       config.Config
@@ -50,6 +50,7 @@ type App struct {
 	connected bool
 	lastErr   string
 	quitting  bool
+	ready     bool
 
 	auth      *auth.Client
 	push      *push.Client
@@ -61,12 +62,12 @@ type App struct {
 	autostart *autostart.Manager
 	trayIcon  []byte
 
-	autostartMenuItem *menu.MenuItem
+	autostartMenuItem *application.MenuItem
+	appMenu           *application.Menu
 }
 
 // NewApp creates the application.
 func NewApp(trayIcon []byte) *App {
-	// Locale before menus/tray: buildMenu runs before OnStartup.
 	i18n.Init("")
 	as, err := autostart.New()
 	if err != nil {
@@ -83,85 +84,130 @@ func NewApp(trayIcon []byte) *App {
 	}
 }
 
-// ProxyMiddleware exposes the Gotify reverse-proxy for the Wails asset server.
-func (a *App) ProxyMiddleware() func(http.Handler) http.Handler {
+func (a *App) bindApp(app *application.App) {
+	a.wailsApp = app
+}
+
+func (a *App) bindWindow(window *application.WebviewWindow) {
+	a.window = window
+}
+
+func (a *App) setNotificationService(svc *notifications.NotificationService) {
+	a.notifySvc = svc
+}
+
+// proxyMiddleware exposes the Gotify reverse-proxy for the Wails asset server.
+//
+//wails:ignore
+func (a *App) proxyMiddleware() application.Middleware {
 	return a.proxy.Middleware
 }
 
-// buildMenu creates the native application menu (needed on macOS where systray is disabled).
-func (a *App) buildMenu() *menu.Menu {
+// ServiceStartup implements application.ServiceStartup.
+func (a *App) ServiceStartup(_ context.Context, _ application.ServiceOptions) error {
+	a.startup()
+	return nil
+}
+
+// ServiceShutdown implements application.ServiceShutdown.
+func (a *App) ServiceShutdown() error {
+	a.shutdown()
+	return nil
+}
+
+func (a *App) rebuildApplicationMenu() {
+	if a.wailsApp == nil {
+		return
+	}
+	menu := a.buildApplicationMenu()
+	a.appMenu = menu
+	a.wailsApp.Menu.SetApplicationMenu(menu)
+	menu.Update()
+}
+
+func (a *App) buildApplicationMenu() *application.Menu {
+	menu := a.wailsApp.NewMenu()
+	root := menu.AddSubmenu(i18n.T("app.gotify"))
+
+	root.Add(i18n.T("menu.show_window")).OnClick(func(_ *application.Context) { a.ShowWindow() })
+	root.Add(i18n.T("menu.settings")).OnClick(func(_ *application.Context) { a.OpenSettings() })
+	root.Add(i18n.T("menu.recent_notifications")).OnClick(func(_ *application.Context) { a.OpenNotificationHistory() })
+	root.Add(i18n.T("menu.send_message")).OnClick(func(_ *application.Context) { a.OpenSendMessage() })
+	root.Add(i18n.T("menu.test_notification")).OnClick(func(_ *application.Context) { _ = a.TestNotification() })
+
 	enabled := a.autostart != nil && a.autostart.IsEnabled()
-	a.autostartMenuItem = menu.Checkbox(i18n.T("menu.start_at_login"), enabled, nil, func(_ *menu.CallbackData) {
-		a.ToggleAutostart()
+	a.autostartMenuItem = root.AddCheckbox(i18n.T("menu.start_at_login"), enabled)
+	a.autostartMenuItem.OnClick(func(ctx *application.Context) {
+		checked := false
+		if item := ctx.ClickedMenuItem(); item != nil {
+			checked = item.Checked()
+		}
+		a.setAutostartEnabled(checked)
 	})
+
+	langMenu := root.AddSubmenu(i18n.T("menu.language"))
 	current := i18n.Locale()
-	langMenu := menu.NewMenu()
 	for _, lang := range i18n.Languages() {
 		code := lang.Code
-		langMenu.Append(menu.Checkbox(lang.Name, code == current, nil, func(_ *menu.CallbackData) {
+		item := langMenu.AddRadio(lang.Name, code == current)
+		item.OnClick(func(_ *application.Context) {
 			a.SetLocale(code)
-		}))
+		})
 	}
-	aboutMenu := menu.NewMenuFromItems(
-		menu.Text(i18n.Tf("menu.about_author", map[string]string{"Author": version.Author}), nil, nil),
-		menu.Text(i18n.Tf("menu.about_license", map[string]string{"License": version.License}), nil, func(_ *menu.CallbackData) {
-			a.OpenLicense()
-		}),
-		menu.Text(i18n.Tf("menu.about_version", map[string]string{"Version": version.Version}), nil, func(_ *menu.CallbackData) {
-			a.OpenLatestRelease()
-		}),
-		menu.Text(i18n.T("menu.check_updates"), nil, func(_ *menu.CallbackData) {
-			a.CheckForUpdates()
-		}),
-		menu.Separator(),
-		menu.Text(i18n.T("menu.about_repo"), nil, func(_ *menu.CallbackData) { a.OpenRepository() }),
-	)
-	return menu.NewMenuFromItems(
-		menu.SubMenu(i18n.T("app.gotify"), menu.NewMenuFromItems(
-			menu.Text(i18n.T("menu.show_window"), nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
-			menu.Text(i18n.T("menu.settings"), nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
-			menu.Text(i18n.T("menu.recent_notifications"), nil, func(_ *menu.CallbackData) { a.OpenNotificationHistory() }),
-			menu.Text(i18n.T("menu.send_message"), nil, func(_ *menu.CallbackData) { a.OpenSendMessage() }),
-			menu.Text(i18n.T("menu.test_notification"), nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
-			a.autostartMenuItem,
-			menu.SubMenu(i18n.T("menu.language"), langMenu),
-			menu.SubMenu(i18n.T("menu.about"), aboutMenu),
-			menu.Separator(),
-			menu.Text(i18n.T("menu.quit"), keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
-		)),
-	)
+
+	aboutMenu := root.AddSubmenu(i18n.T("menu.about"))
+	aboutAuthor := aboutMenu.Add(i18n.Tf("menu.about_author", map[string]string{"Author": version.Author}))
+	aboutAuthor.SetEnabled(false)
+	aboutMenu.Add(i18n.Tf("menu.about_license", map[string]string{"License": version.License})).OnClick(func(_ *application.Context) {
+		a.OpenLicense()
+	})
+	aboutMenu.Add(i18n.Tf("menu.about_version", map[string]string{"Version": version.Version})).OnClick(func(_ *application.Context) {
+		a.OpenLatestRelease()
+	})
+	aboutMenu.Add(i18n.T("menu.check_updates")).OnClick(func(_ *application.Context) {
+		a.CheckForUpdates()
+	})
+	aboutMenu.AddSeparator()
+	aboutMenu.Add(i18n.T("menu.about_repo")).OnClick(func(_ *application.Context) { a.OpenRepository() })
+
+	root.AddSeparator()
+	quit := root.Add(i18n.T("menu.quit"))
+	quit.SetAccelerator("CmdOrCtrl+q")
+	quit.OnClick(func(_ *application.Context) { a.Quit() })
+
+	return menu
 }
 
 func trayLabels() tray.Labels {
 	return tray.Labels{
-		Tooltip:          i18n.T("tray.tooltip"),
-		StatusStarting:   i18n.T("tray.status_starting"),
-		StatusTooltip:    i18n.T("tray.status_tooltip"),
-		Open:             i18n.T("tray.open"),
-		OpenTooltip:      i18n.T("tray.open_tooltip"),
-		Settings:         i18n.T("tray.settings"),
-		SettingsTooltip:  i18n.T("tray.settings_tooltip"),
-		History:          i18n.T("tray.history"),
-		HistoryTooltip:   i18n.T("tray.history_tooltip"),
-		Send:             i18n.T("tray.send"),
-		SendTooltip:      i18n.T("tray.send_tooltip"),
-		Autostart:        i18n.T("tray.autostart"),
-		AutostartTooltip: i18n.T("tray.autostart_tooltip"),
-		Language:         i18n.T("tray.language"),
-		LanguageTooltip:  i18n.T("tray.language_tooltip"),
-		About:            i18n.T("tray.about"),
-		AboutTooltip:     i18n.T("tray.about_tooltip"),
-		AboutAuthor:         i18n.Tf("tray.about_author", map[string]string{"Author": version.Author}),
-		AboutLicense:        i18n.Tf("tray.about_license", map[string]string{"License": version.License}),
-		AboutLicenseTooltip: i18n.T("tray.about_license_tooltip"),
-		AboutVersion:        i18n.Tf("tray.about_version", map[string]string{"Version": version.Version}),
-		AboutVersionTooltip: i18n.T("tray.about_version_tooltip"),
-		AboutCheckUpdates:         i18n.T("tray.about_check_updates"),
-		AboutCheckUpdatesTooltip:  i18n.T("tray.about_check_updates_tooltip"),
-		AboutRepo:           i18n.T("tray.about_repo"),
-		AboutRepoTooltip:    i18n.T("tray.about_repo_tooltip"),
-		Quit:             i18n.T("tray.quit"),
-		QuitTooltip:      i18n.T("tray.quit_tooltip"),
+		Tooltip:                  i18n.T("tray.tooltip"),
+		StatusStarting:           i18n.T("tray.status_starting"),
+		StatusTooltip:            i18n.T("tray.status_tooltip"),
+		Open:                     i18n.T("tray.open"),
+		OpenTooltip:              i18n.T("tray.open_tooltip"),
+		Settings:                 i18n.T("tray.settings"),
+		SettingsTooltip:          i18n.T("tray.settings_tooltip"),
+		History:                  i18n.T("tray.history"),
+		HistoryTooltip:           i18n.T("tray.history_tooltip"),
+		Send:                     i18n.T("tray.send"),
+		SendTooltip:              i18n.T("tray.send_tooltip"),
+		Autostart:                i18n.T("tray.autostart"),
+		AutostartTooltip:         i18n.T("tray.autostart_tooltip"),
+		Language:                 i18n.T("tray.language"),
+		LanguageTooltip:          i18n.T("tray.language_tooltip"),
+		About:                    i18n.T("tray.about"),
+		AboutTooltip:             i18n.T("tray.about_tooltip"),
+		AboutAuthor:              i18n.Tf("tray.about_author", map[string]string{"Author": version.Author}),
+		AboutLicense:             i18n.Tf("tray.about_license", map[string]string{"License": version.License}),
+		AboutLicenseTooltip:      i18n.T("tray.about_license_tooltip"),
+		AboutVersion:             i18n.Tf("tray.about_version", map[string]string{"Version": version.Version}),
+		AboutVersionTooltip:      i18n.T("tray.about_version_tooltip"),
+		AboutCheckUpdates:        i18n.T("tray.about_check_updates"),
+		AboutCheckUpdatesTooltip: i18n.T("tray.about_check_updates_tooltip"),
+		AboutRepo:                i18n.T("tray.about_repo"),
+		AboutRepoTooltip:         i18n.T("tray.about_repo_tooltip"),
+		Quit:                     i18n.T("tray.quit"),
+		QuitTooltip:              i18n.T("tray.quit_tooltip"),
 	}
 }
 
@@ -174,13 +220,12 @@ func trayLanguages() []tray.Language {
 	return out
 }
 
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+func (a *App) startup() {
 	applog.Init()
 	if p, err := config.Path(); err == nil {
 		applog.Printf("config path: %s", p)
 	}
-	_ = a.notify.Init(ctx)
+	_ = a.notify.Init(a.notifySvc)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -206,24 +251,20 @@ func (a *App) startup(ctx context.Context) {
 	}
 	lang := i18n.Init(a.cfg.Locale)
 	applog.Printf("locale=%s (config=%q)", lang, a.cfg.Locale)
-	// Rebuild native menu after config locale (buildMenu ran earlier with OS default).
-	if a.ctx != nil {
-		runtime.MenuSetApplicationMenu(a.ctx, a.buildMenu())
-		runtime.MenuUpdateApplicationMenu(a.ctx)
-	}
+	a.rebuildApplicationMenu()
 	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
 	if _, err := a.proxy.StartWSProxy(); err != nil {
 		applog.Printf("ws proxy start failed: %v", err)
 	}
 
 	autostartOn := a.syncAutostartOnStartup()
-	a.tray = tray.New(a.trayIcon, tray.Callbacks{
-		OnOpen:      a.ShowWindow,
-		OnSettings:  a.OpenSettings,
-		OnHistory:   a.OpenNotificationHistory,
-		OnSend:      a.OpenSendMessage,
-		OnAutostart: a.ToggleAutostart,
-		OnLanguage:  a.SetLocale,
+	a.tray = tray.New(a.wailsApp, a.trayIcon, tray.Callbacks{
+		OnOpen:              a.ShowWindow,
+		OnSettings:          a.OpenSettings,
+		OnHistory:           a.OpenNotificationHistory,
+		OnSend:              a.OpenSendMessage,
+		OnAutostart:         a.setAutostartEnabled,
+		OnLanguage:          a.SetLocale,
 		OnAboutLicense:      a.OpenLicense,
 		OnAboutVersion:      a.OpenLatestRelease,
 		OnAboutCheckUpdates: a.CheckForUpdates,
@@ -251,14 +292,12 @@ func (a *App) startup(ctx context.Context) {
 	a.maybeAutoCheckUpdates()
 }
 
-// domReady re-emits session state after the frontend has subscribed to events.
-// OnStartup's emitStatus often races ahead of EventsOn and left users on the
-// Connect form despite a saved client token.
-func (a *App) domReady(ctx context.Context) {
-	a.ctx = ctx
-	// Apply saved geometry before any show/hide so maximise cannot race-show the
-	// window when starting to tray.
-	a.RestoreWindowState()
+// onRuntimeReady re-emits session state after the frontend has subscribed to events.
+func (a *App) onRuntimeReady() {
+	a.mu.Lock()
+	a.ready = true
+	a.mu.Unlock()
+	a.restoreWindowState()
 	a.emitStatus()
 	a.mu.Lock()
 	configured := a.cfg.Configured()
@@ -266,20 +305,20 @@ func (a *App) domReady(ctx context.Context) {
 	token := a.cfg.ClientToken
 	a.mu.Unlock()
 	if configured && view == "gotify" {
-		applog.Printf("domReady: restoring gotify view (hiding to tray)")
-		runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
+		applog.Printf("runtimeReady: restoring gotify view (hiding to tray)")
+		a.emit("show-gotify", map[string]string{
 			"token":  token,
 			"uiPath": gotifyproxy.UIPrefix + "/",
 		})
-		// Already connected from a saved session — run in tray, don't leave the window open.
-		runtime.WindowHide(a.ctx)
-	} else {
-		runtime.WindowShow(a.ctx)
+		if a.window != nil {
+			a.window.Hide()
+		}
+	} else if a.window != nil {
+		a.window.Show()
 	}
 }
 
-func (a *App) shutdown(ctx context.Context) {
-	// Geometry is saved in beforeClose; the window is already destroyed here.
+func (a *App) shutdown() {
 	a.stopStream()
 	if a.tray != nil {
 		a.tray.Stop()
@@ -293,49 +332,51 @@ func (a *App) shutdown(ctx context.Context) {
 	applog.Close()
 }
 
-func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+func (a *App) onWindowClosing(e *application.WindowEvent) {
 	a.SaveWindowState()
 	a.mu.Lock()
 	quitting := a.quitting
 	a.mu.Unlock()
 	if quitting {
-		return false
+		return
 	}
-	runtime.WindowHide(ctx)
-	return true
+	e.Cancel()
+	if a.window != nil {
+		a.window.Hide()
+	}
 }
 
-// RestoreWindowState applies the persisted window size, position and maximised
+// restoreWindowState applies the persisted window size, position and maximised
 // state. It does not show the window.
-func (a *App) RestoreWindowState() {
-	if a.ctx == nil {
+func (a *App) restoreWindowState() {
+	if a.window == nil {
 		return
 	}
 	a.mu.Lock()
 	cfg := a.cfg
 	a.mu.Unlock()
 	w, h := cfg.ResolvedWindowSize()
-	runtime.WindowSetSize(a.ctx, w, h)
+	a.window.SetSize(w, h)
 	if cfg.WindowPosSet && config.WindowPositionUsable(cfg.WindowX, cfg.WindowY, w, h) {
-		runtime.WindowSetPosition(a.ctx, cfg.WindowX, cfg.WindowY)
+		a.window.SetPosition(cfg.WindowX, cfg.WindowY)
 	}
 	if cfg.WindowMaximised {
-		runtime.WindowMaximise(a.ctx)
+		a.window.Maximise()
 	}
 }
 
 // SaveWindowState persists the current window geometry. While maximised, the
 // last known normal bounds are kept and only the maximised flag is updated.
 func (a *App) SaveWindowState() {
-	if a.ctx == nil {
+	if a.window == nil {
 		return
 	}
-	if runtime.WindowIsMinimised(a.ctx) {
+	if a.window.IsMinimised() {
 		return
 	}
-	w, h := runtime.WindowGetSize(a.ctx)
-	x, y := runtime.WindowGetPosition(a.ctx)
-	maxed := runtime.WindowIsMaximised(a.ctx)
+	w, h := a.window.Size()
+	x, y := a.window.Position()
+	maxed := a.window.IsMaximised()
 
 	a.mu.Lock()
 	cfg := config.MergeWindowGeometry(a.cfg, w, h, x, y, maxed)
@@ -426,13 +467,14 @@ func (a *App) Connect(serverURL, username, password string) error {
 	a.stopStream()
 	a.startStream()
 	a.emitStatus()
-	runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
+	a.emit("show-gotify", map[string]string{
 		"serverUrl": cfg.ServerURL,
 		"token":     cfg.ClientToken,
 		"uiPath":    gotifyproxy.UIPrefix + "/",
 	})
-	// After a successful connect, return to the tray like a notification client.
-	runtime.WindowHide(a.ctx)
+	if a.window != nil {
+		a.window.Hide()
+	}
 	applog.Printf("connect: window hidden to tray")
 	return nil
 }
@@ -444,16 +486,16 @@ func (a *App) OpenSettings() {
 	a.mu.Unlock()
 	a.ShowWindow()
 	a.emitStatus()
-	runtime.EventsEmit(a.ctx, "show-setup")
+	a.emit("show-setup", nil)
 }
 
 // ShowWindow brings the main window to the front.
 func (a *App) ShowWindow() {
-	if a.ctx == nil {
+	if a.window == nil {
 		return
 	}
-	runtime.WindowShow(a.ctx)
-	runtime.WindowUnminimise(a.ctx)
+	a.window.Show()
+	a.window.UnMinimise()
 }
 
 // OpenRepository opens the project repository in the default browser.
@@ -472,10 +514,10 @@ func (a *App) OpenLatestRelease() {
 }
 
 func (a *App) openURL(url string) {
-	if a.ctx == nil || url == "" {
+	if a.wailsApp == nil || url == "" {
 		return
 	}
-	runtime.BrowserOpenURL(a.ctx, url)
+	_ = a.wailsApp.Browser.OpenURL(url)
 }
 
 // Quit exits the application for real.
@@ -484,8 +526,8 @@ func (a *App) Quit() {
 	a.quitting = true
 	a.mu.Unlock()
 	a.stopStream()
-	if a.ctx != nil {
-		runtime.Quit(a.ctx)
+	if a.wailsApp != nil {
+		a.wailsApp.Quit()
 	}
 }
 
@@ -527,9 +569,6 @@ func (a *App) startStream() {
 				}
 			}
 			a.emitStatus()
-			// Do not force the setup form on transient unauthorized blips;
-			// the user can open Settings manually. Auto-open made every stream
-			// hiccup look like "login required again".
 		},
 	}
 	a.mu.Lock()
@@ -556,12 +595,10 @@ func (a *App) handleMessage(msg stream.Message) {
 	mode := config.NormalizeHistoryMode(a.cfg.HistoryMode)
 	a.mu.Unlock()
 
-	// 1. Dedup via last_message_id.
 	if msg.ID != 0 && lastID != 0 && msg.ID <= lastID {
 		return
 	}
 
-	// 2. Toast eligibility via min_priority.
 	eligible := config.ShouldNotify(minP, msg.Priority)
 
 	id := strconv.FormatUint(uint64(msg.ID), 10)
@@ -579,24 +616,18 @@ func (a *App) handleMessage(msg stream.Message) {
 	}
 
 	if !eligible {
-		// 4. Below min priority: history only in "all" mode (notified=false).
-		// LastMessageID is intentionally not advanced (unchanged behavior).
 		if mode == config.HistoryModeAll {
 			a.recordHistory(entry)
 		}
 		return
 	}
 
-	// 3. Eligible: toast as before, record history, advance LastMessageID.
 	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
-	// Refresh the iframe message list if it is open; OS toast is only via notify.Show.
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "gotify-message", map[string]string{
-			"id":    id,
-			"title": msg.Title,
-			"body":  msg.Message,
-		})
-	}
+	a.emit("gotify-message", map[string]string{
+		"id":    id,
+		"title": msg.Title,
+		"body":  msg.Message,
+	})
 	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
 		a.setError("notification: " + err.Error())
 		if a.tray != nil {
@@ -629,9 +660,7 @@ func (a *App) recordHistory(e history.Entry) {
 		applog.Printf("history append: %v", err)
 		return
 	}
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "history-updated", nil)
-	}
+	a.emit("history-updated", nil)
 }
 
 // TestNotification sends a local test notification (helps diagnose desktop notify setup).
@@ -667,9 +696,7 @@ func (a *App) SetHistoryMode(mode string) {
 	if err := config.Save(cfg); err != nil {
 		applog.Printf("history mode save config: %v", err)
 	}
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "history-updated", nil)
-	}
+	a.emit("history-updated", nil)
 }
 
 // GetNotificationHistory returns stored entries filtered by the current mode.
@@ -689,9 +716,7 @@ func (a *App) ClearNotificationHistory() {
 	if err := a.history.Clear(); err != nil {
 		applog.Printf("history clear: %v", err)
 	}
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "history-updated", nil)
-	}
+	a.emit("history-updated", nil)
 }
 
 // FormatHistoryEntryMarkdown returns the Markdown for the entry with the given id
@@ -713,11 +738,11 @@ func (a *App) OpenNotificationHistory() {
 	a.mu.Lock()
 	a.view = "history"
 	a.mu.Unlock()
-	if a.ctx != nil {
-		runtime.WindowShow(a.ctx)
-		runtime.WindowUnminimise(a.ctx)
-		runtime.EventsEmit(a.ctx, "show-history", nil)
+	if a.window != nil {
+		a.window.Show()
+		a.window.UnMinimise()
 	}
+	a.emit("show-history", nil)
 	a.emitStatus()
 }
 
@@ -740,8 +765,6 @@ func (a *App) ListApplications() ([]push.Application, error) {
 }
 
 // SendApplicationMessage sends a push message to the given Gotify application.
-// Uses the stored client token with appid (Gotify 3+); never exposes app tokens
-// to the frontend.
 func (a *App) SendApplicationMessage(appID uint, title, message string, priority int) error {
 	a.mu.Lock()
 	serverURL := a.cfg.ServerURL
@@ -769,11 +792,11 @@ func (a *App) OpenSendMessage() {
 	a.mu.Lock()
 	a.view = "send"
 	a.mu.Unlock()
-	if a.ctx != nil {
-		runtime.WindowShow(a.ctx)
-		runtime.WindowUnminimise(a.ctx)
-		runtime.EventsEmit(a.ctx, "show-send", nil)
+	if a.window != nil {
+		a.window.Show()
+		a.window.UnMinimise()
 	}
+	a.emit("show-send", nil)
 	a.emitStatus()
 }
 
@@ -791,15 +814,13 @@ func (a *App) leaveOverlayView() {
 	}
 	view := a.view
 	a.mu.Unlock()
-	if a.ctx != nil {
-		if view == "gotify" {
-			runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
-				"token":  a.GetClientToken(),
-				"uiPath": a.GetUIPath(),
-			})
-		} else {
-			runtime.EventsEmit(a.ctx, "show-setup", nil)
-		}
+	if view == "gotify" {
+		a.emit("show-gotify", map[string]string{
+			"token":  a.GetClientToken(),
+			"uiPath": a.GetUIPath(),
+		})
+	} else {
+		a.emit("show-setup", nil)
 	}
 	a.emitStatus()
 }
@@ -838,15 +859,14 @@ func (a *App) SetLocale(code string) {
 		a.tray.SetLabels(trayLabels())
 		a.tray.SetLocaleChecked(lang)
 	}
-	if a.ctx != nil {
-		runtime.MenuSetApplicationMenu(a.ctx, a.buildMenu())
-		runtime.MenuUpdateApplicationMenu(a.ctx)
-		runtime.WindowSetTitle(a.ctx, i18n.T("app.name"))
-		runtime.EventsEmit(a.ctx, "locale-changed", map[string]string{
-			"locale":  lang,
-			"catalog": a.GetI18nCatalog(),
-		})
+	a.rebuildApplicationMenu()
+	if a.window != nil {
+		a.window.SetTitle(i18n.T("app.name"))
 	}
+	a.emit("locale-changed", map[string]string{
+		"locale":  lang,
+		"catalog": a.GetI18nCatalog(),
+	})
 	a.emitStatus()
 }
 
@@ -869,13 +889,28 @@ func (a *App) ToggleAutostart() {
 	applog.Printf("autostart enabled=%v", enabled)
 }
 
-// syncAutostartOnStartup refreshes OS registration from config / current path.
+func (a *App) setAutostartEnabled(enabled bool) {
+	if a.autostart == nil {
+		applog.Printf("autostart unavailable")
+		return
+	}
+	if err := a.autostart.Set(enabled); err != nil {
+		applog.Printf("autostart set failed: %v", err)
+		a.setError("autostart: " + err.Error())
+		a.applyAutostartUI(a.autostart.IsEnabled())
+		a.emitStatus()
+		return
+	}
+	a.persistAutostart(enabled)
+	a.applyAutostartUI(enabled)
+	applog.Printf("autostart enabled=%v", enabled)
+}
+
 func (a *App) syncAutostartOnStartup() bool {
 	if a.autostart == nil {
 		return false
 	}
 	enabled := a.autostart.IsEnabled()
-	// Config preference wins when set but OS registration was lost (moved binary).
 	if a.cfg.Autostart && !enabled {
 		if err := a.autostart.Enable(); err != nil {
 			applog.Printf("autostart re-enable failed: %v", err)
@@ -883,7 +918,6 @@ func (a *App) syncAutostartOnStartup() bool {
 			enabled = true
 		}
 	}
-	// Keep registration path current when already enabled.
 	if enabled {
 		if err := a.autostart.Enable(); err != nil {
 			applog.Printf("autostart refresh failed: %v", err)
@@ -893,7 +927,7 @@ func (a *App) syncAutostartOnStartup() bool {
 		a.persistAutostart(enabled)
 	}
 	if a.autostartMenuItem != nil {
-		a.autostartMenuItem.Checked = enabled
+		a.autostartMenuItem.SetChecked(enabled)
 	}
 	return enabled
 }
@@ -913,9 +947,9 @@ func (a *App) applyAutostartUI(enabled bool) {
 		a.tray.SetAutostartChecked(enabled)
 	}
 	if a.autostartMenuItem != nil {
-		a.autostartMenuItem.Checked = enabled
-		if a.ctx != nil {
-			runtime.MenuUpdateApplicationMenu(a.ctx)
+		a.autostartMenuItem.SetChecked(enabled)
+		if a.appMenu != nil {
+			a.appMenu.Update()
 		}
 	}
 }
@@ -926,11 +960,19 @@ func (a *App) setError(msg string) {
 	a.mu.Unlock()
 }
 
-func (a *App) emitStatus() {
-	if a.ctx == nil {
+func (a *App) emit(name string, data any) {
+	if a.wailsApp == nil {
 		return
 	}
-	runtime.EventsEmit(a.ctx, "status", a.GetStatus())
+	if data == nil {
+		a.wailsApp.Event.Emit(name)
+		return
+	}
+	a.wailsApp.Event.Emit(name, data)
+}
+
+func (a *App) emitStatus() {
+	a.emit("status", a.GetStatus())
 }
 
 func truncateRunes(s string, n int) string {

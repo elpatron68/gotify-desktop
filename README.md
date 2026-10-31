@@ -1,12 +1,12 @@
 # Gotify Desktop
 
-Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and Go.
+Cross-platform Gotify desktop client built with [Wails v3](https://v3.wails.io) and Go.
 
 ## Features
 
 - Connect with Gotify username/password; the app creates a **client token** (password is not stored)
 - Native desktop **notifications** via Gotify WebSocket `/stream`
-- **System tray** with open / recent notifications / settings / start-at-login / quit (Linux/Windows; macOS uses the app menu because systray conflicts with Wails)
+- **System tray** with open / recent notifications / settings / start-at-login / quit on Linux, Windows and macOS (Wails built-in tray; macOS also keeps the application menu)
 - **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Send message**: open **Send message** from the tray (or the app menu on macOS), pick one of your Gotify applications, enter title / message / priority, and push to that app channel (app token stays in the Go backend)
 - **Automatic updates**: on startup (at most every 24 hours) and via **Check for Updates** in About, the app queries GitHub Releases, asks before download/install, verifies `SHA256SUMS`, then replaces the running package
@@ -19,19 +19,19 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 
 | Platform | Prerequisites |
 |----------|----------------|
-| Linux | Go 1.25+, Node.js 24+, `libgtk-3-dev`, `libwebkit2gtk-4.0-dev` or `libwebkit2gtk-4.1-dev`, `gcc`, `pkg-config` |
-| Windows | Go 1.25+, Node.js 24+, WebView2 runtime |
-| macOS | Go 1.25+, Node.js 24+, Xcode Command Line Tools |
+| Linux | Go 1.26+, Node.js 24+, `libgtk-4-dev`, `libwebkitgtk-6.0-dev`, `gcc`, `pkg-config` |
+| Windows | Go 1.26+, Node.js 24+, WebView2 runtime |
+| macOS | Go 1.26+, Node.js 24+, Xcode Command Line Tools |
 
-Ubuntu 24.04 example (`libwebkit2gtk-4.1`):
+Ubuntu 24.04 example (GTK4 / WebKitGTK 6.0):
 
 ```bash
-sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
 ### Linux system tray (AppIndicator)
 
-On Linux the tray icon is provided by [`fyne.io/systray`](https://github.com/fyne-io/systray). Unlike Windows and macOS, most Linux desktops do **not** draw tray icons themselves. Instead the app registers a **Status Notifier Item** (SNI) / **AppIndicator** on D-Bus, and a panel applet (or extension) displays it.
+On Linux the tray icon is provided by the Wails v3 system tray (Status Notifier Item / AppIndicator on D-Bus). Unlike Windows and macOS, most Linux desktops do **not** draw tray icons themselves — a panel applet (or extension) must host them.
 
 If that host component is missing, the app can still run, but:
 
@@ -41,7 +41,7 @@ If that host component is missing, the app can still run, but:
 
 #### Runtime package
 
-On Debian/Ubuntu and derivatives, install the Ayatana AppIndicator library (used by many trays and by Go systray bindings):
+On Debian/Ubuntu and derivatives, install the Ayatana AppIndicator library (used by many trays):
 
 ```bash
 sudo apt install libayatana-appindicator3-1
@@ -119,7 +119,7 @@ Log out/in once if the icon still does not appear after enabling the extension.
 
 #### Wayland (e.g. CachyOS, Fedora Workstation, Plasma Wayland)
 
-Gotify Desktop is a GTK3 / WebKitGTK / Wails app. It generally runs under Wayland, but a few behaviours differ from X11:
+Gotify Desktop is a GTK4 / WebKitGTK 6 / Wails v3 app. It generally runs under Wayland, but a few behaviours differ from X11:
 
 | Area | What to expect |
 |------|----------------|
@@ -145,8 +145,8 @@ sudo pacman -S libappindicator-gtk3
 
 #### Build vs run
 
-- **Building** Gotify Desktop needs GTK/WebKit **dev** packages (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, …).
-- **Running** a prebuilt binary on another machine needs the **runtime** stack: GTK 3, WebKitGTK, and for the tray typically `libayatana-appindicator3-1` plus a working panel indicator host.
+- **Building** Gotify Desktop needs GTK/WebKit **dev** packages (`libgtk-4-dev`, `libwebkitgtk-6.0-dev`, …).
+- **Running** a prebuilt binary on another machine needs the **runtime** stack: GTK 4, WebKitGTK 6.0, and for the tray typically `libayatana-appindicator3-1` plus a working panel indicator host.
 
 #### Quick checks
 
@@ -163,41 +163,33 @@ gnome-extensions list 2>/dev/null | grep -i indicator || true
 
 If the window opens but the tray icon never appears, install the Ayatana package, confirm your DE hosts indicators (especially on GNOME), then restart the app.
 
-Install the Wails CLI (ensure `$HOME/go/bin` is on your `PATH`):
+Install the Wails v3 CLI (ensure `$HOME/go/bin` is on your `PATH`):
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
 ```
 
 ## Develop
 
 ```bash
 cd frontend && npm install && cd ..
-wails dev
-```
-
-On Ubuntu 24.04 with WebKit 4.1, `wails.json` sets `build:tags` to `webkit2_41`. If needed explicitly:
-
-```bash
-wails dev -tags webkit2_41
+wails3 dev
 ```
 
 ## Build
 
 ```bash
-wails build
+wails3 build
 ```
 
-Binary: `build/bin/gotify-desktop`.
-
-Binary output: `build/bin/gotify-desktop` (extension varies by OS).
+Binary: `bin/gotify-desktop` (extension / `.app` bundle varies by OS).
 
 Cross-compile examples (host toolchains / Docker may be required):
 
 ```bash
-wails build -platform windows/amd64
-wails build -platform darwin/arm64
-wails build -platform linux/amd64
+wails3 build GOOS=windows GOARCH=amd64
+wails3 build GOOS=darwin GOARCH=arm64
+wails3 build GOOS=linux GOARCH=amd64
 ```
 
 ## CI/CD & packaging
@@ -211,7 +203,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main` and on 
 | Platform | Artifacts |
 |----------|-----------|
 | Windows | NSIS setup (`*-setup.exe`) + portable `.exe` |
-| Linux | AppImage + raw binary (needs host WebKitGTK 4.1) |
+| Linux | AppImage + raw binary (needs host WebKitGTK 6.0) |
 | macOS | DMG + `.app` zip (unsigned) |
 | All | `SHA256SUMS` (GNU sha256sum) attached to each GitHub Release |
 
@@ -232,13 +224,13 @@ Local helpers:
 
 ```bash
 # Windows (with NSIS on PATH)
-wails build -platform windows/amd64 -nsis
+wails3 package GOOS=windows GOARCH=amd64
 
-# Linux AppImage (after wails build)
-./packaging/linux/build-appimage.sh build/bin/gotify-desktop dist linux-amd64
+# Linux AppImage (after wails3 build)
+./packaging/linux/build-appimage.sh bin/gotify-desktop dist linux-amd64
 
-# macOS DMG (after wails build)
-./packaging/darwin/build-dmg.sh build/bin/gotify-desktop.app dist darwin-arm64
+# macOS DMG (after wails3 build)
+./packaging/darwin/build-dmg.sh bin/gotify-desktop.app dist darwin-arm64
 ```
 
 Pushing a version tag creates a GitHub Release:
@@ -262,7 +254,7 @@ Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_messag
 
 UI strings (setup form, tray, app menu, status) live in `internal/i18n/locales/*.json`. **English is the fallback.** Bundled languages: `en`, `de`, `fr`, `es`.
 
-Default: OS language if available, otherwise English. Change via **Language** in the tray (or app menu on macOS); the choice is stored as `locale` in `config.json`.
+Default: OS language if available, otherwise English. Change via **Language** in the tray or app menu; the choice is stored as `locale` in `config.json`.
 
 Notification diagnostics are appended to `notify.log` in the same directory (e.g. `%AppData%\gotify-desktop\notify.log` on Windows).
 

@@ -1,7 +1,6 @@
 package notify
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -11,13 +10,13 @@ import (
 	"sync"
 
 	"github.com/elpatron68/gotify-desktop/internal/applog"
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 // Notifier wraps Wails native notifications with a platform fallback.
 type Notifier struct {
 	mu      sync.Mutex
-	ctx     context.Context
+	svc     *notifications.NotificationService
 	ready   bool
 	initErr error
 	lastErr error
@@ -25,11 +24,12 @@ type Notifier struct {
 	logFile io.Closer
 }
 
-// Init initializes the platform notification system. Call from OnStartup.
-func (n *Notifier) Init(ctx context.Context) error {
+// Init initializes the platform notification system.
+// On Windows the Wails notifier is skipped in favour of native AUMID toasts.
+func (n *Notifier) Init(svc *notifications.NotificationService) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.ctx = ctx
+	n.svc = svc
 	n.ensureLogger()
 
 	// Windows: never use Wails/WebView2 notifications — they appear as
@@ -37,26 +37,21 @@ func (n *Notifier) Init(ctx context.Context) error {
 	if runtime.GOOS == "windows" {
 		n.ready = false
 		n.initErr = nil
-		n.logf("using native Windows toasts (skipping Wails/WebView2 notifier)")
+		n.logf("using native Windows toasts (skipping Wails notifier)")
 		applog.Printf("notify init ready GOOS=windows backend=native-aumid")
 		return nil
 	}
 
-	if err := wailsruntime.InitializeNotifications(ctx); err != nil {
-		n.initErr = err
-		n.ready = false
-		n.logf("wails InitializeNotifications failed: %v (will use platform fallback)", err)
-		return err
-	}
-	if !wailsruntime.IsNotificationAvailable(ctx) {
-		n.initErr = fmt.Errorf("notifications not available on this platform")
+	if svc == nil {
+		n.initErr = fmt.Errorf("notifications service unavailable")
 		n.ready = false
 		n.logf("%v (will use platform fallback)", n.initErr)
 		return n.initErr
 	}
-	authorized, err := wailsruntime.CheckNotificationAuthorization(ctx)
+
+	authorized, err := svc.CheckNotificationAuthorization()
 	if err == nil && !authorized {
-		authorized, err = wailsruntime.RequestNotificationAuthorization(ctx)
+		authorized, err = svc.RequestNotificationAuthorization()
 		if err != nil || !authorized {
 			n.initErr = fmt.Errorf("notification permission denied")
 			n.ready = false
@@ -98,7 +93,7 @@ func (n *Notifier) LastError() string {
 // PowerShell AUMID fallback on Windows. On other OSes, try Wails first, then beeep.
 func (n *Notifier) Show(id, title, body string) error {
 	n.mu.Lock()
-	ctx := n.ctx
+	svc := n.svc
 	ready := n.ready
 	n.ensureLogger()
 	n.mu.Unlock()
@@ -108,8 +103,6 @@ func (n *Notifier) Show(id, title, body string) error {
 	}
 
 	if runtime.GOOS == "windows" {
-		// Unpackaged Win32 apps need a registered AppUserModelID; Wails/WinRT
-		// and bare PowerShell AUMIDs often report success with no visible toast.
 		if err := showPlatformToast(title, body); err != nil {
 			n.setLastErr(err)
 			n.logf("windows toast failed id=%s: %v", id, err)
@@ -122,8 +115,8 @@ func (n *Notifier) Show(id, title, body string) error {
 	}
 
 	var firstErr error
-	if ready && ctx != nil {
-		err := wailsruntime.SendNotification(ctx, wailsruntime.NotificationOptions{
+	if ready && svc != nil {
+		err := svc.SendNotification(notifications.NotificationOptions{
 			ID:    id,
 			Title: title,
 			Body:  body,

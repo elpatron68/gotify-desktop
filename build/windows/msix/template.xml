@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MsixPackagingToolTemplate
+    xmlns="http://schemas.microsoft.com/msix/packaging/msixpackagingtool/template/2022">
+    <Settings
+        AllowTelemetry="false"
+        ApplyACLsToPackageFiles="true"
+        GenerateCommandLineFile="true"
+        AllowPromptForPassword="false">
+    </Settings>
+    <Installer
+        Path="gotify-desktop"
+        Arguments=""
+        InstallLocation="C:\Program Files\elpatron68\Gotify Desktop">
+    </Installer>
+    <PackageInformation
+        PackageName="Gotify Desktop"
+        PackageDisplayName="Gotify Desktop"
+        PublisherName="CN=elpatron68"
+        PublisherDisplayName="elpatron68"
+        Version="0.1.13.0"
+        PackageDescription="Cross-platform Gotify desktop notification client">
+        <Capabilities>
+            <Capability Name="runFullTrust" />
+            
+        </Capabilities>
+        <Applications>
+            <Application
+                Id="me.elpatron.gotify-desktop"
+                Description="Cross-platform Gotify desktop notification client"
+                DisplayName="Gotify Desktop"
+                ExecutableName="gotify-desktop"
+                EntryPoint="Windows.FullTrustApplication">
+                
+            </Application>
+        </Applications>
+        <Resources>
+            <Resource Language="en-us" />
+        </Resources>
+        <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        </Dependencies>
+        <Properties>
+            <Framework>false</Framework>
+            <DisplayName>Gotify Desktop</DisplayName>
+            <PublisherDisplayName>elpatron68</PublisherDisplayName>
+            <Description>Cross-platform Gotify desktop notification client</Description>
+            <Logo>Assets\AppIcon.png</Logo>
+        </Properties>
+    </PackageInformation>
+    <SaveLocation PackagePath="gotify-desktop.msix" />
+    <PackageIntegrity>
+        <CertificatePath></CertificatePath>
+    </PackageIntegrity>
+</MsixPackagingToolTemplate>

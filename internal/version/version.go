@@ -1,5 +1,5 @@
 // Package version holds the app release version shown in About and builds.
-// Keep Version in sync with wails.json info.productVersion (CI: packaging/set-version.sh).
+// Keep Version in sync with build/config.yml info.version and wails.json (CI: packaging/set-version.sh).
 package version
 
 // Version is the product version without a leading "v".
