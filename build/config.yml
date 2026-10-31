@@ -9,7 +9,7 @@ info:
   description: "Cross-platform Gotify desktop notification client"
   copyright: "Copyright © Markus Busche"
   comments: "Cross-platform Gotify desktop notification client"
-  version: "0.1.13"
+  version: "0.2.0"
 
 dev_mode:
   root_path: .
