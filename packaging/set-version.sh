@@ -11,15 +11,15 @@ if [[ -z "$RAW" ]]; then
 fi
 VERSION="${RAW#v}"
 
-# Strip pre-release / metadata so NSIS and Windows version resources stay valid.
-NUMERIC="$(printf '%s' "$VERSION" | sed -E 's/[^0-9].*$//')"
-if [[ ! "$NUMERIC" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]]; then
+# Keep leading major[.minor[.patch[.build]]], drop -dev / +meta suffixes for NSIS.
+if [[ "$VERSION" =~ ^([0-9]+)(\.([0-9]+))?(\.([0-9]+))?(\.([0-9]+))? ]]; then
+  A="${BASH_REMATCH[1]:-0}"
+  B="${BASH_REMATCH[3]:-0}"
+  C="${BASH_REMATCH[5]:-0}"
+  NUMERIC="${A}.${B}.${C}"
+else
   NUMERIC="0.0.0"
 fi
-# Ensure at least major.minor.patch
-IFS=. read -r A B C _ <<< "${NUMERIC}..."
-A="${A:-0}"; B="${B:-0}"; C="${C:-0}"
-NUMERIC="${A}.${B}.${C}"
 
 WAILS_JSON="${WAILS_JSON:-wails.json}"
 if [[ ! -f "$WAILS_JSON" ]]; then
