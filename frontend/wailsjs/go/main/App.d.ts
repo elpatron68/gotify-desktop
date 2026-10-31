@@ -34,7 +34,13 @@ export function LeaveSendMessage():Promise<void>;
 
 export function ListApplications():Promise<Array<push.Application>>;
 
+export function OpenLatestRelease():Promise<void>;
+
+export function OpenLicense():Promise<void>;
+
 export function OpenNotificationHistory():Promise<void>;
+
+export function OpenRepository():Promise<void>;
 
 export function OpenSendMessage():Promise<void>;
 

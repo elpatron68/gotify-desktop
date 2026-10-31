@@ -62,8 +62,20 @@ export function ListApplications() {
   return window['go']['main']['App']['ListApplications']();
 }
 
+export function OpenLatestRelease() {
+  return window['go']['main']['App']['OpenLatestRelease']();
+}
+
+export function OpenLicense() {
+  return window['go']['main']['App']['OpenLicense']();
+}
+
 export function OpenNotificationHistory() {
   return window['go']['main']['App']['OpenNotificationHistory']();
+}
+
+export function OpenRepository() {
+  return window['go']['main']['App']['OpenRepository']();
 }
 
 export function OpenSendMessage() {

@@ -19,12 +19,17 @@ type Controller struct {
 	openItem      *systray.MenuItem
 	settingsItem  *systray.MenuItem
 	historyItem   *systray.MenuItem
-	sendItem      *systray.MenuItem
-	autostartItem *systray.MenuItem
-	languageItem  *systray.MenuItem
-	quitItem      *systray.MenuItem
-	langItems     map[string]*systray.MenuItem
-	started       bool
+	sendItem         *systray.MenuItem
+	autostartItem    *systray.MenuItem
+	languageItem     *systray.MenuItem
+	aboutItem        *systray.MenuItem
+	aboutAuthorItem  *systray.MenuItem
+	aboutLicenseItem *systray.MenuItem
+	aboutVersionItem *systray.MenuItem
+	aboutRepoItem    *systray.MenuItem
+	quitItem         *systray.MenuItem
+	langItems        map[string]*systray.MenuItem
+	started          bool
 }
 
 // New creates a tray controller. icon should be PNG bytes (Linux) or ICO (Windows).
@@ -79,7 +84,9 @@ func (c *Controller) SetLabels(l Labels) {
 	c.mu.Lock()
 	c.opts.Labels = l
 	status, open, settings, history := c.statusItem, c.openItem, c.settingsItem, c.historyItem
-	send, autostart, language, quit := c.sendItem, c.autostartItem, c.languageItem, c.quitItem
+	send, autostart, language := c.sendItem, c.autostartItem, c.languageItem
+	about, aboutAuthor, aboutLicense := c.aboutItem, c.aboutAuthorItem, c.aboutLicenseItem
+	aboutVersion, aboutRepo, quit := c.aboutVersionItem, c.aboutRepoItem, c.quitItem
 	c.mu.Unlock()
 
 	if l.Tooltip != "" {
@@ -103,6 +110,21 @@ func (c *Controller) SetLabels(l Labels) {
 	}
 	if language != nil && l.Language != "" {
 		language.SetTitle(l.Language)
+	}
+	if about != nil && l.About != "" {
+		about.SetTitle(l.About)
+	}
+	if aboutAuthor != nil && l.AboutAuthor != "" {
+		aboutAuthor.SetTitle(l.AboutAuthor)
+	}
+	if aboutLicense != nil && l.AboutLicense != "" {
+		aboutLicense.SetTitle(l.AboutLicense)
+	}
+	if aboutVersion != nil && l.AboutVersion != "" {
+		aboutVersion.SetTitle(l.AboutVersion)
+	}
+	if aboutRepo != nil && l.AboutRepo != "" {
+		aboutRepo.SetTitle(l.AboutRepo)
 	}
 	if quit != nil && l.Quit != "" {
 		quit.SetTitle(l.Quit)
@@ -161,6 +183,13 @@ func (c *Controller) onReady() {
 		langItems[lang.Code] = item
 	}
 
+	about := systray.AddMenuItem(or(l.About, "About"), or(l.AboutTooltip, "About Gotify Desktop"))
+	aboutAuthor := about.AddSubMenuItem(or(l.AboutAuthor, "Author"), "")
+	aboutAuthor.Disable()
+	aboutLicense := about.AddSubMenuItem(or(l.AboutLicense, "License"), or(l.AboutLicenseTooltip, "Open the license file"))
+	aboutVersion := about.AddSubMenuItem(or(l.AboutVersion, "Version"), or(l.AboutVersionTooltip, "Open the latest release"))
+	aboutRepo := about.AddSubMenuItem(or(l.AboutRepo, "Open repository"), or(l.AboutRepoTooltip, "Open the project page"))
+
 	systray.AddSeparator()
 	quit := systray.AddMenuItem(or(l.Quit, "Quit"), or(l.QuitTooltip, "Exit Gotify Desktop"))
 
@@ -172,6 +201,11 @@ func (c *Controller) onReady() {
 	c.sendItem = send
 	c.autostartItem = autostart
 	c.languageItem = language
+	c.aboutItem = about
+	c.aboutAuthorItem = aboutAuthor
+	c.aboutLicenseItem = aboutLicense
+	c.aboutVersionItem = aboutVersion
+	c.aboutRepoItem = aboutRepo
 	c.quitItem = quit
 	c.langItems = langItems
 	c.mu.Unlock()
@@ -198,6 +232,18 @@ func (c *Controller) onReady() {
 			case <-autostart.ClickedCh:
 				if c.cb.OnAutostart != nil {
 					c.cb.OnAutostart()
+				}
+			case <-aboutLicense.ClickedCh:
+				if c.cb.OnAboutLicense != nil {
+					c.cb.OnAboutLicense()
+				}
+			case <-aboutVersion.ClickedCh:
+				if c.cb.OnAboutVersion != nil {
+					c.cb.OnAboutVersion()
+				}
+			case <-aboutRepo.ClickedCh:
+				if c.cb.OnAboutRepo != nil {
+					c.cb.OnAboutRepo()
 				}
 			case <-quit.ClickedCh:
 				if c.cb.OnQuit != nil {

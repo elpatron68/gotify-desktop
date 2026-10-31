@@ -20,6 +20,7 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/push"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
+	"github.com/elpatron68/gotify-desktop/internal/version"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -101,6 +102,17 @@ func (a *App) buildMenu() *menu.Menu {
 			a.SetLocale(code)
 		}))
 	}
+	aboutMenu := menu.NewMenuFromItems(
+		menu.Text(i18n.Tf("menu.about_author", map[string]string{"Author": version.Author}), nil, nil),
+		menu.Text(i18n.Tf("menu.about_license", map[string]string{"License": version.License}), nil, func(_ *menu.CallbackData) {
+			a.OpenLicense()
+		}),
+		menu.Text(i18n.Tf("menu.about_version", map[string]string{"Version": version.Version}), nil, func(_ *menu.CallbackData) {
+			a.OpenLatestRelease()
+		}),
+		menu.Separator(),
+		menu.Text(i18n.T("menu.about_repo"), nil, func(_ *menu.CallbackData) { a.OpenRepository() }),
+	)
 	return menu.NewMenuFromItems(
 		menu.SubMenu(i18n.T("app.gotify"), menu.NewMenuFromItems(
 			menu.Text(i18n.T("menu.show_window"), nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
@@ -110,6 +122,7 @@ func (a *App) buildMenu() *menu.Menu {
 			menu.Text(i18n.T("menu.test_notification"), nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
 			a.autostartMenuItem,
 			menu.SubMenu(i18n.T("menu.language"), langMenu),
+			menu.SubMenu(i18n.T("menu.about"), aboutMenu),
 			menu.Separator(),
 			menu.Text(i18n.T("menu.quit"), keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
 		)),
@@ -133,6 +146,15 @@ func trayLabels() tray.Labels {
 		AutostartTooltip: i18n.T("tray.autostart_tooltip"),
 		Language:         i18n.T("tray.language"),
 		LanguageTooltip:  i18n.T("tray.language_tooltip"),
+		About:            i18n.T("tray.about"),
+		AboutTooltip:     i18n.T("tray.about_tooltip"),
+		AboutAuthor:         i18n.Tf("tray.about_author", map[string]string{"Author": version.Author}),
+		AboutLicense:        i18n.Tf("tray.about_license", map[string]string{"License": version.License}),
+		AboutLicenseTooltip: i18n.T("tray.about_license_tooltip"),
+		AboutVersion:        i18n.Tf("tray.about_version", map[string]string{"Version": version.Version}),
+		AboutVersionTooltip: i18n.T("tray.about_version_tooltip"),
+		AboutRepo:           i18n.T("tray.about_repo"),
+		AboutRepoTooltip:    i18n.T("tray.about_repo_tooltip"),
 		Quit:             i18n.T("tray.quit"),
 		QuitTooltip:      i18n.T("tray.quit_tooltip"),
 	}
@@ -197,7 +219,10 @@ func (a *App) startup(ctx context.Context) {
 		OnSend:      a.OpenSendMessage,
 		OnAutostart: a.ToggleAutostart,
 		OnLanguage:  a.SetLocale,
-		OnQuit:      a.Quit,
+		OnAboutLicense: a.OpenLicense,
+		OnAboutVersion: a.OpenLatestRelease,
+		OnAboutRepo:    a.OpenRepository,
+		OnQuit:         a.Quit,
 	}, tray.Options{
 		AutostartEnabled: autostartOn,
 		Locale:           i18n.Locale(),
@@ -422,6 +447,28 @@ func (a *App) ShowWindow() {
 	}
 	runtime.WindowShow(a.ctx)
 	runtime.WindowUnminimise(a.ctx)
+}
+
+// OpenRepository opens the project repository in the default browser.
+func (a *App) OpenRepository() {
+	a.openURL(version.RepositoryURL)
+}
+
+// OpenLicense opens the project LICENSE file in the default browser.
+func (a *App) OpenLicense() {
+	a.openURL(version.LicenseURL)
+}
+
+// OpenLatestRelease opens the latest GitHub release page in the default browser.
+func (a *App) OpenLatestRelease() {
+	a.openURL(version.ReleasesURL)
+}
+
+func (a *App) openURL(url string) {
+	if a.ctx == nil || url == "" {
+		return
+	}
+	runtime.BrowserOpenURL(a.ctx, url)
 }
 
 // Quit exits the application for real.
