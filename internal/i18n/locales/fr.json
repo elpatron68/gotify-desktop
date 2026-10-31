@@ -5,6 +5,7 @@
   "menu.show_window": "Afficher la fenêtre",
   "menu.settings": "Paramètres",
   "menu.recent_notifications": "Notifications récentes",
+  "menu.send_message": "Envoyer un message",
   "menu.test_notification": "Notification de test",
   "menu.start_at_login": "Lancer à la connexion",
   "menu.language": "Langue",
@@ -19,6 +20,8 @@
   "tray.settings_tooltip": "Ouvrir les paramètres de connexion",
   "tray.history": "Notifications récentes",
   "tray.history_tooltip": "Afficher les notifications récentes",
+  "tray.send": "Envoyer un message",
+  "tray.send_tooltip": "Envoyer un message à une application",
   "tray.autostart": "Lancer à la connexion",
   "tray.autostart_tooltip": "Lancer Gotify Desktop à la connexion",
   "tray.language": "Langue",
@@ -59,5 +62,18 @@
   "history.empty": "Aucune notification pour le moment.",
   "history.copy": "Copier",
   "history.copied": "Copié",
-  "history.copy_failed": "Échec de la copie"
+  "history.copy_failed": "Échec de la copie",
+
+  "send.title": "Envoyer un message",
+  "send.back": "Retour",
+  "send.application": "Application",
+  "send.message_title": "Titre",
+  "send.message": "Message",
+  "send.priority": "Priorité",
+  "send.submit": "Envoyer",
+  "send.sending": "Envoi…",
+  "send.sent": "Message envoyé",
+  "send.apps_empty": "Aucune application sur ce compte. Créez-en une d’abord dans Gotify.",
+  "send.not_configured": "Connectez-vous d’abord à un serveur Gotify.",
+  "send.load_failed": "Impossible de charger les applications"
 }

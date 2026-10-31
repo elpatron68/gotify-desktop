@@ -19,6 +19,7 @@ type Controller struct {
 	openItem      *systray.MenuItem
 	settingsItem  *systray.MenuItem
 	historyItem   *systray.MenuItem
+	sendItem      *systray.MenuItem
 	autostartItem *systray.MenuItem
 	languageItem  *systray.MenuItem
 	quitItem      *systray.MenuItem
@@ -78,7 +79,7 @@ func (c *Controller) SetLabels(l Labels) {
 	c.mu.Lock()
 	c.opts.Labels = l
 	status, open, settings, history := c.statusItem, c.openItem, c.settingsItem, c.historyItem
-	autostart, language, quit := c.autostartItem, c.languageItem, c.quitItem
+	send, autostart, language, quit := c.sendItem, c.autostartItem, c.languageItem, c.quitItem
 	c.mu.Unlock()
 
 	if l.Tooltip != "" {
@@ -93,6 +94,9 @@ func (c *Controller) SetLabels(l Labels) {
 	}
 	if history != nil && l.History != "" {
 		history.SetTitle(l.History)
+	}
+	if send != nil && l.Send != "" {
+		send.SetTitle(l.Send)
 	}
 	if autostart != nil && l.Autostart != "" {
 		autostart.SetTitle(l.Autostart)
@@ -143,6 +147,7 @@ func (c *Controller) onReady() {
 	open := systray.AddMenuItem(or(l.Open, "Open window"), or(l.OpenTooltip, "Show the Gotify window"))
 	settings := systray.AddMenuItem(or(l.Settings, "Settings"), or(l.SettingsTooltip, "Open connection settings"))
 	history := systray.AddMenuItem(or(l.History, "Recent notifications"), or(l.HistoryTooltip, "Show recent notifications"))
+	send := systray.AddMenuItem(or(l.Send, "Send message"), or(l.SendTooltip, "Send a message to an application"))
 	autostart := systray.AddMenuItemCheckbox(
 		or(l.Autostart, "Start at login"),
 		or(l.AutostartTooltip, "Launch Gotify Desktop when you log in"),
@@ -164,6 +169,7 @@ func (c *Controller) onReady() {
 	c.openItem = open
 	c.settingsItem = settings
 	c.historyItem = history
+	c.sendItem = send
 	c.autostartItem = autostart
 	c.languageItem = language
 	c.quitItem = quit
@@ -184,6 +190,10 @@ func (c *Controller) onReady() {
 			case <-history.ClickedCh:
 				if c.cb.OnHistory != nil {
 					c.cb.OnHistory()
+				}
+			case <-send.ClickedCh:
+				if c.cb.OnSend != nil {
+					c.cb.OnSend()
 				}
 			case <-autostart.ClickedCh:
 				if c.cb.OnAutostart != nil {

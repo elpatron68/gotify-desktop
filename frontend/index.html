@@ -49,6 +49,35 @@
         <ul id="history-list" class="history-list"></ul>
         <p id="history-toast" class="history-toast" hidden></p>
     </section>
+    <section id="send-view" class="view" hidden>
+        <header class="history-header">
+            <button type="button" id="send-back" data-i18n="send.back">Back</button>
+            <h1 data-i18n="send.title">Send message</h1>
+        </header>
+        <form id="send-form" class="send-form">
+            <label>
+                <span data-i18n="send.application">Application</span>
+                <select id="send-app" required></select>
+            </label>
+            <p id="send-apps-empty" class="send-hint" hidden data-i18n="send.apps_empty">No applications on this account. Create one in Gotify first.</p>
+            <p id="send-not-configured" class="send-hint" hidden data-i18n="send.not_configured">Connect to a Gotify server first.</p>
+            <label>
+                <span data-i18n="send.message_title">Title</span>
+                <input id="send-message-title" type="text" autocomplete="off"/>
+            </label>
+            <label>
+                <span data-i18n="send.message">Message</span>
+                <textarea id="send-message-body" rows="5" required></textarea>
+            </label>
+            <label>
+                <span data-i18n="send.priority">Priority</span>
+                <input id="send-priority" type="number" min="0" max="10" step="1" value="0"/>
+            </label>
+            <p id="send-error" class="error" hidden></p>
+            <button id="send-submit" type="submit" data-i18n="send.submit">Send</button>
+        </form>
+        <p id="send-toast" class="history-toast" hidden></p>
+    </section>
 </div>
 <script src="./src/main.js" type="module"></script>
 </body>

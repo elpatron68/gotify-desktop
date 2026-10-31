@@ -248,6 +248,64 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+#send-view {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+#send-view[hidden] {
+  display: none;
+}
+
+.send-form {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.send-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.send-form textarea {
+  resize: vertical;
+  min-height: 6rem;
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: inherit;
+}
+
+.send-form select,
+.send-form input[type="number"],
+.send-form input[type="text"] {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: inherit;
+}
+
+.send-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .history-toast {
   position: fixed;
   right: 1rem;

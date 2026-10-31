@@ -5,6 +5,7 @@
   "menu.show_window": "Show Window",
   "menu.settings": "Settings",
   "menu.recent_notifications": "Recent Notifications",
+  "menu.send_message": "Send Message",
   "menu.test_notification": "Test Notification",
   "menu.start_at_login": "Start at Login",
   "menu.language": "Language",
@@ -19,6 +20,8 @@
   "tray.settings_tooltip": "Open connection settings",
   "tray.history": "Recent notifications",
   "tray.history_tooltip": "Show recent notifications",
+  "tray.send": "Send message",
+  "tray.send_tooltip": "Send a message to an application",
   "tray.autostart": "Start at login",
   "tray.autostart_tooltip": "Launch Gotify Desktop when you log in",
   "tray.language": "Language",
@@ -59,5 +62,18 @@
   "history.empty": "No notifications yet.",
   "history.copy": "Copy",
   "history.copied": "Copied",
-  "history.copy_failed": "Copy failed"
+  "history.copy_failed": "Copy failed",
+
+  "send.title": "Send message",
+  "send.back": "Back",
+  "send.application": "Application",
+  "send.message_title": "Title",
+  "send.message": "Message",
+  "send.priority": "Priority",
+  "send.submit": "Send",
+  "send.sending": "Sending…",
+  "send.sent": "Message sent",
+  "send.apps_empty": "No applications on this account. Create one in Gotify first.",
+  "send.not_configured": "Connect to a Gotify server first.",
+  "send.load_failed": "Could not load applications"
 }

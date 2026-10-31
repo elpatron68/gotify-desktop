@@ -12,6 +12,9 @@ import {
   ClearNotificationHistory,
   LeaveNotificationHistory,
   FormatHistoryEntryMarkdown,
+  ListApplications,
+  SendApplicationMessage,
+  LeaveSendMessage,
   SaveWindowState,
 } from '../wailsjs/go/main/App';
 import {ClipboardSetText, EventsOn} from '../wailsjs/runtime/runtime';
@@ -31,10 +34,21 @@ try {
 const setupView = document.getElementById('setup-view');
 const gotifyView = document.getElementById('gotify-view');
 const historyView = document.getElementById('history-view');
+const sendView = document.getElementById('send-view');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
 const historyToast = document.getElementById('history-toast');
 const historyModeAll = document.getElementById('history-mode-all');
+const sendForm = document.getElementById('send-form');
+const sendApp = document.getElementById('send-app');
+const sendTitle = document.getElementById('send-message-title');
+const sendBody = document.getElementById('send-message-body');
+const sendPriority = document.getElementById('send-priority');
+const sendError = document.getElementById('send-error');
+const sendSubmit = document.getElementById('send-submit');
+const sendAppsEmpty = document.getElementById('send-apps-empty');
+const sendNotConfigured = document.getElementById('send-not-configured');
+const sendToast = document.getElementById('send-toast');
 const frame = document.getElementById('gotify-frame');
 const form = document.getElementById('setup-form');
 const errorEl = document.getElementById('error');
@@ -43,9 +57,11 @@ const connectBtn = document.getElementById('connect-btn');
 const serverInput = document.getElementById('server-url');
 const usernameInput = document.getElementById('username');
 
-/** @type {'setup'|'gotify'|'history'|null} */
+/** @type {'setup'|'gotify'|'history'|'send'|null} */
 let currentView = null;
 let bootstrapped = false;
+/** @type {Array<{id:number,name:string,description?:string,defaultPriority?:number}>} */
+let sendAppsCache = [];
 
 function showError(msg) {
   if (!msg) {
@@ -71,6 +87,7 @@ function showSetup(status) {
   setupView.hidden = false;
   gotifyView.hidden = true;
   historyView.hidden = true;
+  sendView.hidden = true;
   if (status?.serverUrl) {
     serverInput.value = status.serverUrl;
   }
@@ -96,6 +113,7 @@ async function showGotify(payload, {forceReload = false} = {}) {
   setupView.hidden = true;
   gotifyView.hidden = false;
   historyView.hidden = true;
+  sendView.hidden = true;
 
   // Do not reload the iframe on every stream status tick — that wiped the Gotify session.
   // Also skip when returning from history: the iframe is still loaded (showSetup blanks it).
@@ -130,14 +148,19 @@ function updateStatusLine(status) {
 
 async function applyStatus(status) {
   if (!status) return;
-  // History is left only via Back (show-gotify / show-setup events), never by a status tick.
-  if (currentView === 'history') {
+  // History/send are left only via Back (show-gotify / show-setup events), never by a status tick.
+  if (currentView === 'history' || currentView === 'send') {
     updateStatusLine(status);
     return;
   }
   if (status.view === 'history') {
     updateStatusLine(status);
     await showHistory();
+    return;
+  }
+  if (status.view === 'send') {
+    updateStatusLine(status);
+    await showSend();
     return;
   }
   // Once we know a saved session exists, never fall back to the Connect form
@@ -236,17 +259,113 @@ async function refreshHistory() {
   renderHistory(await GetNotificationHistory());
 }
 
+/** Park the Gotify iframe so its SPA timers cannot steal shell input focus. */
+function parkGotifyFrame() {
+  if (!frame) return;
+  try {
+    if (frame.src && !frame.src.endsWith('about:blank')) {
+      frame.src = 'about:blank';
+    }
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 async function showHistory() {
   currentView = 'history';
   setupView.hidden = true;
   gotifyView.hidden = true;
   historyView.hidden = false;
+  sendView.hidden = true;
+  parkGotifyFrame();
   try {
     historyModeAll.checked = (await GetHistoryMode()) === 'all';
     await refreshHistory();
   } catch (err) {
     console.error(err);
   }
+}
+
+let sendToastTimer = null;
+
+function showSendError(msg) {
+  if (!msg) {
+    sendError.hidden = true;
+    sendError.textContent = '';
+    return;
+  }
+  sendError.hidden = false;
+  sendError.textContent = msg;
+}
+
+function flashSendToast(msg) {
+  sendToast.textContent = msg;
+  sendToast.hidden = false;
+  clearTimeout(sendToastTimer);
+  sendToastTimer = setTimeout(() => {
+    sendToast.hidden = true;
+  }, 1500);
+}
+
+function clampPriority(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.min(10, Math.max(0, Math.round(v)));
+}
+
+function applyDefaultPriorityForSelectedApp() {
+  const id = Number(sendApp.value);
+  const app = sendAppsCache.find((a) => Number(a.id) === id);
+  const prio = clampPriority(app?.defaultPriority ?? 0);
+  sendPriority.value = String(prio);
+}
+
+function fillSendApps(apps) {
+  sendAppsCache = apps || [];
+  const prev = sendApp.value;
+  sendApp.textContent = '';
+  for (const app of sendAppsCache) {
+    const opt = document.createElement('option');
+    opt.value = String(app.id);
+    opt.textContent = app.name || `#${app.id}`;
+    sendApp.append(opt);
+  }
+  if (prev && [...sendApp.options].some((o) => o.value === prev)) {
+    sendApp.value = prev;
+  }
+  applyDefaultPriorityForSelectedApp();
+  const empty = sendAppsCache.length === 0;
+  sendAppsEmpty.hidden = !empty;
+  sendApp.disabled = empty;
+  sendSubmit.disabled = empty;
+}
+
+async function loadSendApplications() {
+  sendNotConfigured.hidden = true;
+  sendAppsEmpty.hidden = true;
+  showSendError('');
+  try {
+    const apps = await ListApplications();
+    fillSendApps(apps);
+  } catch (err) {
+    const msg = String(err || '');
+    fillSendApps([]);
+    if (/not configured/i.test(msg)) {
+      sendNotConfigured.hidden = false;
+    } else {
+      showSendError(t('send.load_failed') + (msg ? `: ${msg}` : ''));
+    }
+  }
+}
+
+async function showSend() {
+  currentView = 'send';
+  setupView.hidden = true;
+  gotifyView.hidden = true;
+  historyView.hidden = true;
+  sendView.hidden = false;
+  parkGotifyFrame();
+  await loadSendApplications();
 }
 
 historyModeAll.addEventListener('change', async () => {
@@ -262,6 +381,43 @@ document.getElementById('history-clear').addEventListener('click', () => {
 });
 document.getElementById('history-back').addEventListener('click', () => {
   LeaveNotificationHistory().catch(console.error);
+});
+
+sendApp.addEventListener('change', () => {
+  applyDefaultPriorityForSelectedApp();
+});
+
+document.getElementById('send-back').addEventListener('click', () => {
+  LeaveSendMessage().catch(console.error);
+});
+
+sendForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  showSendError('');
+  const appID = Number(sendApp.value);
+  const title = sendTitle.value.trim();
+  const message = sendBody.value.trim();
+  const priority = clampPriority(sendPriority.value);
+  if (!appID) {
+    showSendError(t('send.apps_empty'));
+    return;
+  }
+  if (!message) {
+    showSendError(t('send.message'));
+    return;
+  }
+  sendSubmit.disabled = true;
+  sendSubmit.textContent = t('send.sending');
+  try {
+    await SendApplicationMessage(appID, title, message, priority);
+    sendBody.value = '';
+    flashSendToast(t('send.sent'));
+  } catch (err) {
+    showSendError(String(err));
+  } finally {
+    sendSubmit.disabled = sendAppsCache.length === 0;
+    sendSubmit.textContent = t('send.submit');
+  }
 });
 
 function postToGotify(msg) {
@@ -303,6 +459,9 @@ EventsOn('show-setup', () => {
 EventsOn('show-history', () => {
   showHistory().catch(console.error);
 });
+EventsOn('show-send', () => {
+  showSend().catch(console.error);
+});
 EventsOn('history-updated', () => {
   if (currentView === 'history') {
     refreshHistory().catch(console.error);
@@ -328,6 +487,9 @@ EventsOn('locale-changed', (payload) => {
   GetStatus().then(updateStatusLine).catch(console.error);
   if (currentView === 'history') {
     refreshHistory().catch(console.error);
+  }
+  if (currentView === 'send' && sendSubmit && !sendSubmit.disabled) {
+    sendSubmit.textContent = t('send.submit');
   }
 });
 
@@ -398,13 +560,21 @@ function stopWindowGeometryPolling() {
   saveGeoTimer = null;
 }
 
+function shellInputFocused() {
+  const ae = document.activeElement;
+  if (!ae || ae === document.body) return false;
+  const tag = ae.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
 function startWindowGeometryPolling() {
   if (saveGeoPollId != null) {
     return;
   }
   // Wails has no window-moved DOM event: poll while visible. Go no-ops if unchanged.
+  // Skip while typing — GTK WindowGet* via Wails can steal WebView focus on Linux.
   saveGeoPollId = setInterval(() => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && !shellInputFocused()) {
       SaveWindowState().catch(() => {});
     }
   }, 2000);
