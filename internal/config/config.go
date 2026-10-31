@@ -129,14 +129,16 @@ func Load() (Config, error) {
 var saveMu sync.Mutex
 
 // MergeWindowGeometry applies observed window geometry to cfg. While maximised,
-// existing normal bounds are kept (only missing ones are filled) and the
-// maximised flag is set; otherwise bounds are overwritten and maximised cleared.
+// existing normal bounds are kept and the maximised flag is set. If size was
+// never saved, defaults are used — never the maximised (often fullscreen) size.
+// Otherwise bounds are overwritten and maximised cleared.
 func MergeWindowGeometry(cfg Config, w, h, x, y int, maximised bool) Config {
 	w, h = ClampWindowSize(w, h)
 	if maximised {
 		cfg.WindowMaximised = true
 		if cfg.WindowWidth <= 0 || cfg.WindowHeight <= 0 {
-			cfg.WindowWidth, cfg.WindowHeight = w, h
+			cfg.WindowWidth = DefaultWindowWidth
+			cfg.WindowHeight = DefaultWindowHeight
 		}
 		if !cfg.WindowPosSet {
 			cfg.WindowX, cfg.WindowY = x, y

@@ -380,6 +380,8 @@ async function bootstrap() {
 }
 
 let saveGeoTimer = null;
+let saveGeoPollId = null;
+
 function scheduleSaveWindowState() {
   clearTimeout(saveGeoTimer);
   saveGeoTimer = setTimeout(() => {
@@ -387,19 +389,40 @@ function scheduleSaveWindowState() {
   }, 400);
 }
 
+function stopWindowGeometryPolling() {
+  if (saveGeoPollId != null) {
+    clearInterval(saveGeoPollId);
+    saveGeoPollId = null;
+  }
+  clearTimeout(saveGeoTimer);
+  saveGeoTimer = null;
+}
+
+function startWindowGeometryPolling() {
+  if (saveGeoPollId != null) {
+    return;
+  }
+  // Wails has no window-moved DOM event: poll while visible. Go no-ops if unchanged.
+  saveGeoPollId = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      SaveWindowState().catch(() => {});
+    }
+  }, 2000);
+}
+
 window.addEventListener('resize', scheduleSaveWindowState);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     clearTimeout(saveGeoTimer);
+    saveGeoTimer = null;
+    stopWindowGeometryPolling();
     SaveWindowState().catch(() => {});
+    return;
   }
+  startWindowGeometryPolling();
 });
+window.addEventListener('pagehide', stopWindowGeometryPolling);
+window.addEventListener('beforeunload', stopWindowGeometryPolling);
 
-// Wails has no window-moved DOM event: poll while visible. Go no-ops if unchanged.
-setInterval(() => {
-  if (document.visibilityState === 'visible') {
-    SaveWindowState().catch(() => {});
-  }
-}, 2000);
-
+startWindowGeometryPolling();
 bootstrap().catch(console.error);

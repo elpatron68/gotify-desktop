@@ -190,9 +190,19 @@ func TestMergeWindowGeometryIncompleteThenFill(t *testing.T) {
 	if !got.WindowPosSet || got.WindowX != 10 || got.WindowY != 20 || !got.WindowMaximised {
 		t.Fatalf("position not filled: %+v", got)
 	}
-	// Nothing known: maximised fills everything (size clamped).
-	got = MergeWindowGeometry(Config{}, 100, 100, 5, 6, true)
-	if got.WindowWidth != MinWindowWidth || got.WindowHeight != MinWindowHeight || !got.WindowPosSet || got.WindowX != 5 || got.WindowY != 6 {
-		t.Fatalf("fill failed: %+v", got)
+}
+
+func TestMergeWindowGeometryMaximisedWithoutPriorBoundsUsesDefaults(t *testing.T) {
+	// First maximise with no saved geometry must not persist fullscreen size as
+	// the "normal" restore bounds (e.g. 1920×1080).
+	got := MergeWindowGeometry(Config{}, 1920, 1080, 0, 0, true)
+	if !got.WindowMaximised {
+		t.Fatal("expected maximised")
+	}
+	if got.WindowWidth != DefaultWindowWidth || got.WindowHeight != DefaultWindowHeight {
+		t.Fatalf("want defaults %d×%d, got %d×%d", DefaultWindowWidth, DefaultWindowHeight, got.WindowWidth, got.WindowHeight)
+	}
+	if !got.WindowPosSet || got.WindowX != 0 || got.WindowY != 0 {
+		t.Fatalf("position not filled: %+v", got)
 	}
 }
