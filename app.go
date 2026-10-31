@@ -102,6 +102,7 @@ func (a *App) buildMenu() *menu.Menu {
 		menu.SubMenu(i18n.T("app.gotify"), menu.NewMenuFromItems(
 			menu.Text(i18n.T("menu.show_window"), nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
 			menu.Text(i18n.T("menu.settings"), nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
+			menu.Text(i18n.T("menu.recent_notifications"), nil, func(_ *menu.CallbackData) { a.OpenNotificationHistory() }),
 			menu.Text(i18n.T("menu.test_notification"), nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
 			a.autostartMenuItem,
 			menu.SubMenu(i18n.T("menu.language"), langMenu),
@@ -120,6 +121,8 @@ func trayLabels() tray.Labels {
 		OpenTooltip:      i18n.T("tray.open_tooltip"),
 		Settings:         i18n.T("tray.settings"),
 		SettingsTooltip:  i18n.T("tray.settings_tooltip"),
+		History:          i18n.T("tray.history"),
+		HistoryTooltip:   i18n.T("tray.history_tooltip"),
 		Autostart:        i18n.T("tray.autostart"),
 		AutostartTooltip: i18n.T("tray.autostart_tooltip"),
 		Language:         i18n.T("tray.language"),
@@ -184,6 +187,7 @@ func (a *App) startup(ctx context.Context) {
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
 		OnOpen:      a.ShowWindow,
 		OnSettings:  a.OpenSettings,
+		OnHistory:   a.OpenNotificationHistory,
 		OnAutostart: a.ToggleAutostart,
 		OnLanguage:  a.SetLocale,
 		OnQuit:      a.Quit,

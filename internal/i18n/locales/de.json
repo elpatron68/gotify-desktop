@@ -4,6 +4,7 @@
 
   "menu.show_window": "Fenster anzeigen",
   "menu.settings": "Einstellungen",
+  "menu.recent_notifications": "Letzte Benachrichtigungen",
   "menu.test_notification": "Testbenachrichtigung",
   "menu.start_at_login": "Beim Anmelden starten",
   "menu.language": "Sprache",
@@ -16,6 +17,8 @@
   "tray.open_tooltip": "Gotify-Fenster anzeigen",
   "tray.settings": "Einstellungen",
   "tray.settings_tooltip": "Verbindungseinstellungen öffnen",
+  "tray.history": "Letzte Benachrichtigungen",
+  "tray.history_tooltip": "Letzte Benachrichtigungen anzeigen",
   "tray.autostart": "Beim Anmelden starten",
   "tray.autostart_tooltip": "Gotify Desktop beim Anmelden starten",
   "tray.language": "Sprache",

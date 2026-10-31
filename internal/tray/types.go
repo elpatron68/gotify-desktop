@@ -4,6 +4,7 @@ package tray
 type Callbacks struct {
 	OnOpen      func()
 	OnSettings  func()
+	OnHistory   func()
 	OnAutostart func()
 	OnLanguage  func(code string)
 	OnQuit      func()
@@ -32,6 +33,8 @@ type Labels struct {
 	OpenTooltip      string
 	Settings         string
 	SettingsTooltip  string
+	History          string
+	HistoryTooltip   string
 	Autostart        string
 	AutostartTooltip string
 	Language         string

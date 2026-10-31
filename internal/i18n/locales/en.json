@@ -4,6 +4,7 @@
 
   "menu.show_window": "Show Window",
   "menu.settings": "Settings",
+  "menu.recent_notifications": "Recent Notifications",
   "menu.test_notification": "Test Notification",
   "menu.start_at_login": "Start at Login",
   "menu.language": "Language",
@@ -16,6 +17,8 @@
   "tray.open_tooltip": "Show the Gotify window",
   "tray.settings": "Settings",
   "tray.settings_tooltip": "Open connection settings",
+  "tray.history": "Recent notifications",
+  "tray.history_tooltip": "Show recent notifications",
   "tray.autostart": "Start at login",
   "tray.autostart_tooltip": "Launch Gotify Desktop when you log in",
   "tray.language": "Language",
