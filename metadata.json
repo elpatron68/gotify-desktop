@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M68Z1HZS0SBPWHP3GR1NKPKH",
+  "strategy": "manual-commit",
+  "branch": "feat/send-app-channel-message",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "README.md",
+    "app.go",
+    "frontend/index.html",
+    "frontend/src/main.js",
+    "frontend/src/style.css",
+    "frontend/wailsjs/go/main/App.d.ts",
+    "frontend/wailsjs/go/main/App.js",
+    "frontend/wailsjs/go/models.ts",
+    "internal/gotifyproxy/proxy.go",
+    "internal/gotifyproxy/proxy_test.go",
+    "internal/i18n/locales/de.json",
+    "internal/i18n/locales/en.json",
+    "internal/i18n/locales/es.json",
+    "internal/i18n/locales/fr.json",
+    "internal/push/push.go",
+    "internal/push/push_test.go",
+    "internal/tray/tray_systray.go",
+    "internal/tray/types.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 334751,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4852992,
+    "output_tokens": 49738,
+    "api_call_count": 5
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

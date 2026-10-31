@@ -1,0 +1,23 @@
+Hinzufügen einer Funktion zum Senden von Gotify Push Nachrichten in einen App Kanal
+
+---
+
+Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.
+
+To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.
+
+---
+
+erstelle einen lokalen linux build
+
+---
+
+Cursor in den Eingabefeldern verliert nach ca. 1 Sekunde den Fokus
+
+---
+
+Send: "Error: application not found"
+
+---
+
+funktioniert. Commit, Push, PR, Merge (gh)
