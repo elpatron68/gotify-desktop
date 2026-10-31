@@ -16,6 +16,7 @@ env:
   GO_VERSION: "1.25.x"
   NODE_VERSION: "24"
   NODE_OPTIONS: "--max-old-space-size=4096"
+  WAILS_VERSION: "v2.17.0"
 
 jobs:
   test:
@@ -77,14 +78,40 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Resolve app version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            # Numeric only: NSIS VIProductVersion rejects suffixes like -dev.sha
+            echo "version=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Patch wails.json productVersion
+        shell: bash
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          WAILS_JSON: wails.json
+        run: |
+          chmod +x packaging/set-version.sh
+          ./packaging/set-version.sh
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
+            fuse libfuse2 wget
+
+      - name: Install NSIS (Windows installer)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: choco install nsis -y --no-progress
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
       - name: Drop Linux-only build tags on Windows/macOS
         if: runner.os != 'Linux'
@@ -103,36 +130,64 @@ jobs:
         if: runner.os == 'Linux'
         run: wails build -platform "${{ matrix.platform }}" -clean -tags "${{ matrix.wails_tags }}"
 
-      - name: Build (Windows/macOS)
-        if: runner.os != 'Linux'
+      - name: Build + NSIS installer (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          export PATH="/c/Program Files (x86)/NSIS:/c/Program Files/NSIS:$PATH"
+          wails build -platform "${{ matrix.platform }}" -clean -nsis
+          ls -la build/bin/
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         run: wails build -platform "${{ matrix.platform }}" -clean
 
-      - name: Package macOS app
-        if: runner.os == 'macOS'
-        working-directory: build/bin
-        run: |
-          ditto -c -k --sequesterRsrc --keepParent gotify-desktop.app \
-            "gotify-desktop-${{ matrix.name }}.zip"
-
-      - name: Prepare Linux artifact
+      - name: Package Linux AppImage
         if: runner.os == 'Linux'
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          # Avoid FUSE in GitHub-hosted runners.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
-          mkdir -p dist
+          mkdir -p dist tools
+          curl -fsSL -o tools/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x tools/appimagetool packaging/linux/build-appimage.sh
+          export PATH="$PWD/tools:$PATH"
+          ./packaging/linux/build-appimage.sh \
+            "build/bin/${{ matrix.artifact }}" \
+            dist \
+            "${{ matrix.name }}"
           cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}"
           chmod +x "dist/gotify-desktop-${{ matrix.name }}"
 
-      - name: Prepare Windows artifact
+      - name: Package Windows artifacts
         if: runner.os == 'Windows'
         shell: bash
         run: |
           mkdir -p dist
           cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}.exe"
+          # Wails NSIS OutFile: ${INFO_PROJECTNAME}-${ARCH}-installer.exe
+          if [[ -f build/bin/gotify-desktop-amd64-installer.exe ]]; then
+            cp build/bin/gotify-desktop-amd64-installer.exe \
+              "dist/gotify-desktop-${{ matrix.name }}-setup.exe"
+          else
+            echo "NSIS installer missing; listing build/bin:" >&2
+            ls -la build/bin/ >&2
+            exit 1
+          fi
 
-      - name: Prepare macOS artifact
+      - name: Package macOS zip + DMG
         if: runner.os == 'macOS'
         run: |
           mkdir -p dist
-          mv "build/bin/gotify-desktop-${{ matrix.name }}.zip" "dist/"
+          ditto -c -k --sequesterRsrc --keepParent build/bin/gotify-desktop.app \
+            "dist/gotify-desktop-${{ matrix.name }}.zip"
+          chmod +x packaging/darwin/build-dmg.sh
+          ./packaging/darwin/build-dmg.sh \
+            build/bin/gotify-desktop.app \
+            dist \
+            "${{ matrix.name }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

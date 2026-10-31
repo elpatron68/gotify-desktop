@@ -10,5 +10,13 @@
   "author": {
     "name": "Markus Busche",
     "email": "m.busche@gmail.com"
-  }
+  },
+  "info": {
+    "companyName": "elpatron68",
+    "productName": "Gotify Desktop",
+    "productVersion": "0.1.9",
+    "copyright": "Copyright \u00a9 Markus Busche",
+    "comments": "Cross-platform Gotify desktop notification client"
+  },
+  "nsisType": "multiple"
 }

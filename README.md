@@ -143,19 +143,38 @@ wails build -platform darwin/arm64
 wails build -platform linux/amd64
 ```
 
-## CI/CD
+## CI/CD & packaging
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main`:
+GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main` and on version tags:
 
 1. Unit tests
-2. Native builds for **Linux**, **Windows**, and **macOS** (universal)
-3. Artifacts uploaded for download from the Actions run
+2. Native builds for **Linux**, **Windows**, and **macOS** (arm64)
+3. Installer / portable packages uploaded as artifacts (and attached to Releases on tags)
 
-Pushing a version tag creates a GitHub Release with the binaries:
+| Platform | Artifacts |
+|----------|-----------|
+| Windows | NSIS setup (`*-setup.exe`) + portable `.exe` |
+| Linux | AppImage + raw binary (needs host WebKitGTK 4.1) |
+| macOS | DMG + `.app` zip (unsigned) |
+
+Local helpers:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+# Windows (with NSIS on PATH)
+wails build -platform windows/amd64 -nsis
+
+# Linux AppImage (after wails build)
+./packaging/linux/build-appimage.sh build/bin/gotify-desktop dist linux-amd64
+
+# macOS DMG (after wails build)
+./packaging/darwin/build-dmg.sh build/bin/gotify-desktop.app dist darwin-arm64
+```
+
+Pushing a version tag creates a GitHub Release:
+
+```bash
+git tag v0.1.9
+git push origin v0.1.9
 ```
 
 ## Configuration
