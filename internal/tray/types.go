@@ -5,6 +5,7 @@ type Callbacks struct {
 	OnOpen      func()
 	OnSettings  func()
 	OnHistory   func()
+	OnSend      func()
 	OnAutostart func()
 	OnLanguage  func(code string)
 	OnQuit      func()
@@ -35,6 +36,8 @@ type Labels struct {
 	SettingsTooltip  string
 	History          string
 	HistoryTooltip   string
+	Send             string
+	SendTooltip      string
 	Autostart        string
 	AutostartTooltip string
 	Language         string

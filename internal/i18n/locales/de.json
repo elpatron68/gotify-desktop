@@ -5,6 +5,7 @@
   "menu.show_window": "Fenster anzeigen",
   "menu.settings": "Einstellungen",
   "menu.recent_notifications": "Letzte Benachrichtigungen",
+  "menu.send_message": "Nachricht senden",
   "menu.test_notification": "Testbenachrichtigung",
   "menu.start_at_login": "Beim Anmelden starten",
   "menu.language": "Sprache",
@@ -19,6 +20,8 @@
   "tray.settings_tooltip": "Verbindungseinstellungen öffnen",
   "tray.history": "Letzte Benachrichtigungen",
   "tray.history_tooltip": "Letzte Benachrichtigungen anzeigen",
+  "tray.send": "Nachricht senden",
+  "tray.send_tooltip": "Nachricht an eine Anwendung senden",
   "tray.autostart": "Beim Anmelden starten",
   "tray.autostart_tooltip": "Gotify Desktop beim Anmelden starten",
   "tray.language": "Sprache",
@@ -59,5 +62,18 @@
   "history.empty": "Noch keine Benachrichtigungen.",
   "history.copy": "Kopieren",
   "history.copied": "Kopiert",
-  "history.copy_failed": "Kopieren fehlgeschlagen"
+  "history.copy_failed": "Kopieren fehlgeschlagen",
+
+  "send.title": "Nachricht senden",
+  "send.back": "Zurück",
+  "send.application": "Anwendung",
+  "send.message_title": "Titel",
+  "send.message": "Nachricht",
+  "send.priority": "Priorität",
+  "send.submit": "Senden",
+  "send.sending": "Sende…",
+  "send.sent": "Nachricht gesendet",
+  "send.apps_empty": "Keine Anwendungen in diesem Konto. Lege zuerst eine in Gotify an.",
+  "send.not_configured": "Zuerst mit einem Gotify-Server verbinden.",
+  "send.load_failed": "Anwendungen konnten nicht geladen werden"
 }

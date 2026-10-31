@@ -300,11 +300,16 @@ try{
 }catch(e){}
 try{console.info('[gotify-desktop] session bootstrap ok wsBase='+wsBase);}catch(e){}
 // Keep the UI off the login route if a desktop token is present.
+// Skip while the shell hides this iframe (send/history/setup): hash changes
+// inside a background iframe steal focus from desktop input fields every tick.
 setInterval(function(){
   try{
-    if(location.hash && location.hash.indexOf('login')!==-1){
-      location.hash='#/';
-    }
+    if(!location.hash || location.hash.indexOf('login')===-1) return;
+    try{
+      var gv=window.parent&&window.parent.document&&window.parent.document.getElementById('gotify-view');
+      if(gv&&gv.hidden) return;
+    }catch(e){}
+    location.hash='#/';
   }catch(e){}
 }, 1000);
 window.addEventListener('message', function(ev){

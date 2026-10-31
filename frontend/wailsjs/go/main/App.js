@@ -54,8 +54,20 @@ export function LeaveNotificationHistory() {
   return window['go']['main']['App']['LeaveNotificationHistory']();
 }
 
+export function LeaveSendMessage() {
+  return window['go']['main']['App']['LeaveSendMessage']();
+}
+
+export function ListApplications() {
+  return window['go']['main']['App']['ListApplications']();
+}
+
 export function OpenNotificationHistory() {
   return window['go']['main']['App']['OpenNotificationHistory']();
+}
+
+export function OpenSendMessage() {
+  return window['go']['main']['App']['OpenSendMessage']();
 }
 
 export function OpenSettings() {
@@ -70,8 +82,16 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function RestoreWindowState() {
+  return window['go']['main']['App']['RestoreWindowState']();
+}
+
 export function SaveWindowState() {
   return window['go']['main']['App']['SaveWindowState']();
+}
+
+export function SendApplicationMessage(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SendApplicationMessage'](arg1, arg2, arg3, arg4);
 }
 
 export function SetHistoryMode(arg1) {
@@ -88,4 +108,8 @@ export function ShowWindow() {
 
 export function TestNotification() {
   return window['go']['main']['App']['TestNotification']();
+}
+
+export function ToggleAutostart() {
+  return window['go']['main']['App']['ToggleAutostart']();
 }

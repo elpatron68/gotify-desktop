@@ -17,6 +17,7 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/history"
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
+	"github.com/elpatron68/gotify-desktop/internal/push"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -30,7 +31,7 @@ type AppStatus struct {
 	Connected     bool   `json:"connected"`
 	ServerURL     string `json:"serverUrl"`
 	Username      string `json:"username"`
-	View          string `json:"view"` // "setup" | "gotify" | "history"
+	View          string `json:"view"` // "setup" | "gotify" | "history" | "send"
 	Error         string `json:"error"`
 	MinPriority   int    `json:"minPriority"`
 	NotifyReady   bool   `json:"notifyReady"`
@@ -50,6 +51,7 @@ type App struct {
 	quitting  bool
 
 	auth      *auth.Client
+	push      *push.Client
 	stream    *stream.Client
 	notify    *notify.Notifier
 	tray      *tray.Controller
@@ -71,6 +73,7 @@ func NewApp(trayIcon []byte) *App {
 	}
 	return &App{
 		auth:      auth.New(),
+		push:      push.New(),
 		notify:    &notify.Notifier{},
 		proxy:     &gotifyproxy.Proxy{},
 		autostart: as,
@@ -103,6 +106,7 @@ func (a *App) buildMenu() *menu.Menu {
 			menu.Text(i18n.T("menu.show_window"), nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
 			menu.Text(i18n.T("menu.settings"), nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
 			menu.Text(i18n.T("menu.recent_notifications"), nil, func(_ *menu.CallbackData) { a.OpenNotificationHistory() }),
+			menu.Text(i18n.T("menu.send_message"), nil, func(_ *menu.CallbackData) { a.OpenSendMessage() }),
 			menu.Text(i18n.T("menu.test_notification"), nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
 			a.autostartMenuItem,
 			menu.SubMenu(i18n.T("menu.language"), langMenu),
@@ -123,6 +127,8 @@ func trayLabels() tray.Labels {
 		SettingsTooltip:  i18n.T("tray.settings_tooltip"),
 		History:          i18n.T("tray.history"),
 		HistoryTooltip:   i18n.T("tray.history_tooltip"),
+		Send:             i18n.T("tray.send"),
+		SendTooltip:      i18n.T("tray.send_tooltip"),
 		Autostart:        i18n.T("tray.autostart"),
 		AutostartTooltip: i18n.T("tray.autostart_tooltip"),
 		Language:         i18n.T("tray.language"),
@@ -188,6 +194,7 @@ func (a *App) startup(ctx context.Context) {
 		OnOpen:      a.ShowWindow,
 		OnSettings:  a.OpenSettings,
 		OnHistory:   a.OpenNotificationHistory,
+		OnSend:      a.OpenSendMessage,
 		OnAutostart: a.ToggleAutostart,
 		OnLanguage:  a.SetLocale,
 		OnQuit:      a.Quit,
@@ -662,6 +669,66 @@ func (a *App) OpenNotificationHistory() {
 
 // LeaveNotificationHistory returns to the Gotify UI if configured, else setup.
 func (a *App) LeaveNotificationHistory() {
+	a.leaveOverlayView()
+}
+
+// ListApplications returns Gotify applications for the configured account (no tokens).
+func (a *App) ListApplications() ([]push.Application, error) {
+	a.mu.Lock()
+	serverURL := a.cfg.ServerURL
+	token := a.cfg.ClientToken
+	configured := a.cfg.Configured()
+	a.mu.Unlock()
+	if !configured {
+		return nil, fmt.Errorf("not configured")
+	}
+	return a.push.ListApplications(serverURL, token)
+}
+
+// SendApplicationMessage sends a push message to the given Gotify application.
+// Uses the stored client token with appid (Gotify 3+); never exposes app tokens
+// to the frontend.
+func (a *App) SendApplicationMessage(appID uint, title, message string, priority int) error {
+	a.mu.Lock()
+	serverURL := a.cfg.ServerURL
+	clientToken := a.cfg.ClientToken
+	configured := a.cfg.Configured()
+	a.mu.Unlock()
+	if !configured {
+		return fmt.Errorf("not configured")
+	}
+	if appID == 0 {
+		return fmt.Errorf("application is required")
+	}
+	if priority < 0 {
+		priority = 0
+	}
+	if priority > 10 {
+		priority = 10
+	}
+	applog.Printf("send message app=%d", appID)
+	return a.push.Send(serverURL, clientToken, appID, title, message, priority)
+}
+
+// OpenSendMessage shows the window with the send-message view.
+func (a *App) OpenSendMessage() {
+	a.mu.Lock()
+	a.view = "send"
+	a.mu.Unlock()
+	if a.ctx != nil {
+		runtime.WindowShow(a.ctx)
+		runtime.WindowUnminimise(a.ctx)
+		runtime.EventsEmit(a.ctx, "show-send", nil)
+	}
+	a.emitStatus()
+}
+
+// LeaveSendMessage returns to the Gotify UI if configured, else setup.
+func (a *App) LeaveSendMessage() {
+	a.leaveOverlayView()
+}
+
+func (a *App) leaveOverlayView() {
 	a.mu.Lock()
 	if a.cfg.Configured() {
 		a.view = "gotify"

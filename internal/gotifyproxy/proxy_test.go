@@ -48,6 +48,9 @@ func TestInjectSessionBootstrapRewritesWebSocket(t *testing.T) {
 	if !strings.Contains(s, "window.Notification") {
 		t.Fatal("expected Notification stub to avoid duplicate browser toasts")
 	}
+	if !strings.Contains(s, "gotify-view") || !strings.Contains(s, "gv.hidden") {
+		t.Fatal("expected login-hash redirect to skip while shell hides Gotify view")
+	}
 }
 
 func TestStartWSProxy(t *testing.T) {
