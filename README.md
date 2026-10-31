@@ -1,5 +1,13 @@
 # Gotify Desktop
 
+[![CI](https://github.com/elpatron68/gotify-desktop/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elpatron68/gotify-desktop/actions/workflows/ci.yml)
+[![Build](https://img.shields.io/github/actions/workflow/status/elpatron68/gotify-desktop/ci.yml?branch=main&label=build)](https://github.com/elpatron68/gotify-desktop/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/elpatron68/gotify-desktop)](https://github.com/elpatron68/gotify-desktop/releases)
+[![Wails](https://img.shields.io/badge/Wails-v3.0.0-red)](https://v3.wails.io)
+[![Go](https://img.shields.io/github/go-mod/go-version/elpatron68/gotify-desktop?logo=go&logoColor=white)](https://github.com/elpatron68/gotify-desktop/blob/main/go.mod)
+[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#requirements)
+
 Cross-platform Gotify desktop client built with [Wails v3](https://v3.wails.io) and Go.
 
 ## Features
