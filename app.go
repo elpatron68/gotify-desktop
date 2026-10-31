@@ -500,7 +500,9 @@ func (a *App) handleMessage(msg stream.Message) {
 		a.cfg.LastMessageID = msg.ID
 		cfg := a.cfg
 		a.mu.Unlock()
-		_ = config.Save(cfg)
+		if err := config.Save(cfg); err != nil {
+			applog.Printf("last message id save config: %v", err)
+		}
 	}
 }
 
