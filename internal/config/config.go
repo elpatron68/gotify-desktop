@@ -17,6 +17,13 @@ const (
 	HistoryModeAll    = "all"
 )
 
+const (
+	DefaultWindowWidth  = 1100
+	DefaultWindowHeight = 800
+	MinWindowWidth      = 640
+	MinWindowHeight     = 480
+)
+
 // Config holds persistent application settings.
 // Passwords are never stored (same model as gotify/android Settings).
 type Config struct {
@@ -30,10 +37,52 @@ type Config struct {
 	Locale string `json:"locale,omitempty"`
 	// HistoryMode is "toasts" (default) or "all". Unknown/empty values normalize to toasts.
 	HistoryMode string `json:"history_mode,omitempty"`
+	// Window geometry. Width/height <=0 means unset (use defaults). WindowPosSet
+	// distinguishes a saved 0,0 position from "never placed".
+	WindowWidth     int  `json:"window_width,omitempty"`
+	WindowHeight    int  `json:"window_height,omitempty"`
+	WindowX         int  `json:"window_x,omitempty"`
+	WindowY         int  `json:"window_y,omitempty"`
+	WindowPosSet    bool `json:"window_pos_set,omitempty"`
+	WindowMaximised bool `json:"window_maximised,omitempty"`
 }
 
 func Default() Config {
 	return Config{MinPriority: 0, HistoryMode: HistoryModeToasts}
+}
+
+func ClampWindowSize(w, h int) (int, int) {
+	if w < MinWindowWidth {
+		w = MinWindowWidth
+	}
+	if h < MinWindowHeight {
+		h = MinWindowHeight
+	}
+	return w, h
+}
+
+func (c Config) ResolvedWindowSize() (int, int) {
+	w, h := c.WindowWidth, c.WindowHeight
+	if w <= 0 {
+		w = DefaultWindowWidth
+	}
+	if h <= 0 {
+		h = DefaultWindowHeight
+	}
+	return ClampWindowSize(w, h)
+}
+
+func WindowPositionUsable(x, y, w, h int) bool {
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	if x+w < 50 || y+h < 50 {
+		return false
+	}
+	if x > 10000 || y > 10000 {
+		return false
+	}
+	return true
 }
 
 // Dir returns the platform config directory for this app.

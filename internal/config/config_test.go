@@ -132,3 +132,28 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatalf("loaded %+v want %+v", loaded, cfg)
 	}
 }
+
+func TestResolvedWindowSizeDefaults(t *testing.T) {
+	c := Default()
+	w, h := c.ResolvedWindowSize()
+	if w != DefaultWindowWidth || h != DefaultWindowHeight {
+		t.Fatalf("%d×%d", w, h)
+	}
+}
+
+func TestResolvedWindowSizeClamps(t *testing.T) {
+	c := Config{WindowWidth: 100, WindowHeight: 50}
+	w, h := c.ResolvedWindowSize()
+	if w != MinWindowWidth || h != MinWindowHeight {
+		t.Fatalf("%d×%d", w, h)
+	}
+}
+
+func TestWindowPositionUsable(t *testing.T) {
+	if !WindowPositionUsable(100, 100, 800, 600) {
+		t.Fatal("expected usable")
+	}
+	if WindowPositionUsable(-9000, -9000, 800, 600) {
+		t.Fatal("expected unusable")
+	}
+}
