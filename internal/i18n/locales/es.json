@@ -56,7 +56,7 @@
   "notify.test_body": "Notificación de prueba de Gotify Desktop",
   "notify.default_title": "Gotify",
 
-  "update.title": "Actualizaciones",
+  "update.title": "Gotify Desktop Update",
   "update.available": "La versión {{.Latest}} está disponible (tienes {{.Current}}). ¿Descargar e instalar ahora?",
   "update.install": "Instalar",
   "update.later": "Más tarde",
