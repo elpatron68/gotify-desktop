@@ -8,9 +8,9 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/update"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
 //go:embed all:frontend/dist
@@ -41,36 +41,50 @@ func main() {
 	if len(icon) == 0 {
 		icon = appIcon
 	}
-	app := NewApp(icon)
+	desktop := NewApp(icon)
+	notifier := notifications.New()
+	desktop.setNotificationService(notifier)
+
+	app := application.New(application.Options{
+		Name:        i18n.T("app.name"),
+		Description: "Cross-platform Gotify desktop notification client",
+		Icon:        appIcon,
+		Services: []application.Service{
+			// Notifier starts first so App.ServiceStartup can call notify.Init.
+			application.NewService(notifier),
+			application.NewService(desktop),
+		},
+		Assets: application.AssetOptions{
+			Handler:    application.AssetFileServerFS(assets),
+			Middleware: desktop.proxyMiddleware(),
+		},
+	})
+	desktop.bindApp(app)
+
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            i18n.T("app.name"),
+		Width:            config.DefaultWindowWidth,
+		Height:           config.DefaultWindowHeight,
+		MinWidth:         config.MinWindowWidth,
+		MinHeight:        config.MinWindowHeight,
+		Hidden:           true,
+		BackgroundColour: application.NewRGB(18, 24, 32),
+		UseApplicationMenu: true,
+	})
+	desktop.bindWindow(window)
+
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		desktop.onWindowClosing(e)
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(_ *application.WindowEvent) {
+		desktop.onRuntimeReady()
+	})
 
 	if exe, err := os.Executable(); err == nil {
 		update.CleanupOldBackup(exe)
 	}
 
-	err := wails.Run(&options.App{
-		Title:             i18n.T("app.name"),
-		Width:             config.DefaultWindowWidth,
-		Height:            config.DefaultWindowHeight,
-		MinWidth:          config.MinWindowWidth,
-		MinHeight:         config.MinWindowHeight,
-		HideWindowOnClose: true,
-		// Start hidden; DomReady shows the window only when setup is required.
-		StartHidden: true,
-		Menu:        app.buildMenu(),
-		AssetServer: &assetserver.Options{
-			Assets:     assets,
-			Middleware: app.ProxyMiddleware(),
-		},
-		BackgroundColour: &options.RGBA{R: 18, G: 24, B: 32, A: 1},
-		OnStartup:        app.startup,
-		OnDomReady:       app.domReady,
-		OnShutdown:       app.shutdown,
-		OnBeforeClose:    app.beforeClose,
-		Bind: []interface{}{
-			app,
-		},
-	})
-	if err != nil {
+	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

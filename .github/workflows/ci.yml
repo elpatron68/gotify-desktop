@@ -13,10 +13,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.x"
+  GO_VERSION: "1.26.x"
   NODE_VERSION: "24"
   NODE_OPTIONS: "--max-old-space-size=4096"
-  WAILS_VERSION: "v2.17.0"
+  WAILS_VERSION: "v3.0.0"
 
 jobs:
   test:
@@ -49,19 +49,18 @@ jobs:
         include:
           - name: linux-amd64
             os: ubuntu-24.04
-            platform: linux/amd64
-            wails_tags: webkit2_41
+            goos: linux
+            goarch: amd64
             artifact: gotify-desktop
           - name: windows-amd64
             os: windows-latest
-            platform: windows/amd64
-            wails_tags: ""
+            goos: windows
+            goarch: amd64
             artifact: gotify-desktop.exe
-          # arm64-only: avoids long universal link; systray is stubbed on darwin (Wails conflict).
           - name: darwin-arm64
             os: macos-latest
-            platform: darwin/arm64
-            wails_tags: ""
+            goos: darwin
+            goarch: arm64
             artifact: gotify-desktop.app
 
     steps:
@@ -89,11 +88,10 @@ jobs:
             echo "version=0.0.0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Patch wails.json productVersion
+      - name: Patch product version
         shell: bash
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
-          WAILS_JSON: wails.json
         run: |
           chmod +x packaging/set-version.sh
           ./packaging/set-version.sh
@@ -102,7 +100,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev \
             fuse libfuse2 wget
 
       - name: Install NSIS (Windows installer)
@@ -111,36 +109,30 @@ jobs:
         run: choco install nsis -y --no-progress
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
-
-      - name: Drop Linux-only build tags on Windows/macOS
-        if: runner.os != 'Linux'
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path("wails.json")
-          data = json.loads(path.read_text())
-          data.pop("build:tags", None)
-          path.write_text(json.dumps(data, indent=2) + "\n")
-          PY
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: wails build -platform "${{ matrix.platform }}" -clean -tags "${{ matrix.wails_tags }}"
+        run: wails3 build GOOS=linux GOARCH=amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
 
-      - name: Build + NSIS installer (Windows)
+      - name: Package Windows (NSIS)
         if: runner.os == 'Windows'
         shell: bash
         run: |
           export PATH="/c/Program Files (x86)/NSIS:/c/Program Files/NSIS:$PATH"
-          wails build -platform "${{ matrix.platform }}" -clean -nsis
-          ls -la build/bin/
+          wails3 package GOOS=windows GOARCH=amd64
+          ls -la bin/ || true
+          ls -la build/windows/nsis/ || true
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
-        run: wails build -platform "${{ matrix.platform }}" -clean
+        run: wails3 build GOOS=darwin GOARCH=arm64
+        env:
+          GOOS: darwin
+          GOARCH: arm64
 
       - name: Package Linux AppImage
         if: runner.os == 'Linux'
@@ -155,10 +147,10 @@ jobs:
           chmod +x tools/appimagetool packaging/linux/build-appimage.sh
           export PATH="$PWD/tools:$PATH"
           ./packaging/linux/build-appimage.sh \
-            "build/bin/${{ matrix.artifact }}" \
+            "bin/${{ matrix.artifact }}" \
             dist \
             "${{ matrix.name }}"
-          cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}"
+          cp "bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}"
           chmod +x "dist/gotify-desktop-${{ matrix.name }}"
 
       - name: Package Windows artifacts
@@ -166,14 +158,18 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp "build/bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}.exe"
-          # Wails NSIS OutFile: ${INFO_PROJECTNAME}-${ARCH}-installer.exe
-          if [[ -f build/bin/gotify-desktop-amd64-installer.exe ]]; then
-            cp build/bin/gotify-desktop-amd64-installer.exe \
+          cp "bin/${{ matrix.artifact }}" "dist/gotify-desktop-${{ matrix.name }}.exe"
+          # Prefer project-root bin installer from NSIS OutFile; fall back to nsis dir.
+          if [[ -f bin/gotify-desktop-amd64-installer.exe ]]; then
+            cp bin/gotify-desktop-amd64-installer.exe \
+              "dist/gotify-desktop-${{ matrix.name }}-setup.exe"
+          elif [[ -f build/windows/nsis/gotify-desktop-installer.exe ]]; then
+            cp build/windows/nsis/gotify-desktop-installer.exe \
               "dist/gotify-desktop-${{ matrix.name }}-setup.exe"
           else
-            echo "NSIS installer missing; listing build/bin:" >&2
-            ls -la build/bin/ >&2
+            echo "NSIS installer missing; listing bin/ and nsis/:" >&2
+            ls -la bin/ >&2 || true
+            ls -la build/windows/nsis/ >&2 || true
             exit 1
           fi
 
@@ -181,11 +177,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent build/bin/gotify-desktop.app \
+          ditto -c -k --sequesterRsrc --keepParent bin/gotify-desktop.app \
             "dist/gotify-desktop-${{ matrix.name }}.zip"
           chmod +x packaging/darwin/build-dmg.sh
           ./packaging/darwin/build-dmg.sh \
-            build/bin/gotify-desktop.app \
+            bin/gotify-desktop.app \
             dist \
             "${{ matrix.name }}"
 

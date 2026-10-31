@@ -1,0 +1,43 @@
+# This file contains the configuration for this project.
+# When you update `info` or `fileAssociations`, run `wails3 task common:update:build-assets` to update the assets.
+version: '3'
+
+info:
+  companyName: "elpatron68"
+  productName: "Gotify Desktop"
+  productIdentifier: "me.elpatron.gotify-desktop"
+  description: "Cross-platform Gotify desktop notification client"
+  copyright: "Copyright © Markus Busche"
+  comments: "Cross-platform Gotify desktop notification client"
+  version: "0.1.13"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - bin
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+      - "*.js"
+      - "*.ts"
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown
+
+fileAssociations: []

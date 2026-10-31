@@ -11,7 +11,6 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/update"
 	"github.com/elpatron68/gotify-desktop/internal/version"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const updateCheckInterval = 24 * time.Hour
@@ -79,7 +78,6 @@ func (a *App) runUpdateCheck(manual bool) {
 		applog.Printf("update dialog: %v", err)
 		return
 	}
-	// Wails QuestionDialog returns the pressed button label.
 	if !isAffirmativeUpdateChoice(choice) {
 		applog.Printf("update deferred by user (choice=%q)", choice)
 		return
@@ -162,37 +160,41 @@ func (a *App) markUpdateChecked() {
 }
 
 func (a *App) askUpdateQuestion(message string) (string, error) {
-	if a.ctx == nil {
-		return "", fmt.Errorf("no runtime context")
+	if a.wailsApp == nil {
+		return "", fmt.Errorf("no wails application")
 	}
-	return runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-		Type:          runtime.QuestionDialog,
-		Title:         i18n.T("update.title"),
-		Message:       message,
-		Buttons:       []string{i18n.T("update.install"), i18n.T("update.later")},
-		DefaultButton: i18n.T("update.install"),
-		CancelButton:  i18n.T("update.later"),
-	})
+	done := make(chan string, 1)
+	dialog := a.wailsApp.Dialog.Question().
+		SetTitle(i18n.T("update.title")).
+		SetMessage(message)
+	installLabel := i18n.T("update.install")
+	laterLabel := i18n.T("update.later")
+	install := dialog.AddButton(installLabel)
+	later := dialog.AddButton(laterLabel)
+	dialog.SetDefaultButton(install)
+	dialog.SetCancelButton(later)
+	install.OnClick(func() { done <- installLabel })
+	later.OnClick(func() { done <- laterLabel })
+	dialog.Show()
+	return <-done, nil
 }
 
 func (a *App) showUpdateInfo(message string) {
-	if a.ctx == nil {
+	if a.wailsApp == nil {
 		return
 	}
-	_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-		Type:    runtime.InfoDialog,
-		Title:   i18n.T("update.title"),
-		Message: message,
-	})
+	a.wailsApp.Dialog.Info().
+		SetTitle(i18n.T("update.title")).
+		SetMessage(message).
+		Show()
 }
 
 func (a *App) showUpdateError(message string) {
-	if a.ctx == nil {
+	if a.wailsApp == nil {
 		return
 	}
-	_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-		Type:    runtime.ErrorDialog,
-		Title:   i18n.T("update.title"),
-		Message: message,
-	})
+	a.wailsApp.Dialog.Error().
+		SetTitle(i18n.T("update.title")).
+		SetMessage(message).
+		Show()
 }

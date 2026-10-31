@@ -16,8 +16,8 @@ import {
   SendApplicationMessage,
   LeaveSendMessage,
   SaveWindowState,
-} from '../wailsjs/go/main/App';
-import {ClipboardSetText, EventsOn} from '../wailsjs/runtime/runtime';
+} from '../bindings/github.com/elpatron68/gotify-desktop/app.js';
+import {Clipboard, Events} from '@wailsio/runtime';
 import {applyDom, loadCatalog, t} from './i18n.js';
 
 // OS toasts are native ("Gotify Desktop"). Block WebView Notification so
@@ -193,12 +193,9 @@ async function copyText(text) {
     await navigator.clipboard.writeText(text);
     return;
   } catch (err) {
-    console.warn('navigator.clipboard failed, falling back to Wails ClipboardSetText', err);
+    console.warn('navigator.clipboard failed, falling back to Wails Clipboard.SetText', err);
   }
-  const ok = await ClipboardSetText(text);
-  if (ok === false) {
-    throw new Error('ClipboardSetText returned false');
-  }
+  await Clipboard.SetText(text);
 }
 
 function flashHistoryToast(msg) {
@@ -449,33 +446,34 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-EventsOn('status', (status) => {
-  applyStatus(status).catch(console.error);
+Events.On('status', (event) => {
+  applyStatus(event?.data).catch(console.error);
 });
-EventsOn('show-setup', () => {
+Events.On('show-setup', () => {
   bootstrapped = false;
   GetStatus().then(showSetup).catch(console.error);
 });
-EventsOn('show-history', () => {
+Events.On('show-history', () => {
   showHistory().catch(console.error);
 });
-EventsOn('show-send', () => {
+Events.On('show-send', () => {
   showSend().catch(console.error);
 });
-EventsOn('history-updated', () => {
+Events.On('history-updated', () => {
   if (currentView === 'history') {
     refreshHistory().catch(console.error);
   }
 });
-EventsOn('show-gotify', (payload) => {
+Events.On('show-gotify', (event) => {
   bootstrapped = true;
-  showGotify(payload, {forceReload: false}).catch(console.error);
+  showGotify(event?.data, {forceReload: false}).catch(console.error);
 });
 // Native OS toasts come from Go only. This event only refreshes the iframe list.
-EventsOn('gotify-message', () => {
+Events.On('gotify-message', () => {
   postToGotify({type: 'gotify-desktop-refresh'});
 });
-EventsOn('locale-changed', (payload) => {
+Events.On('locale-changed', (event) => {
+  const payload = event?.data || {};
   let cat = {};
   try {
     cat = typeof payload?.catalog === 'string' ? JSON.parse(payload.catalog) : payload?.catalog || {};

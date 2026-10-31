@@ -1,12 +1,14 @@
 {
-  "$schema": "https://wails.io/schemas/config.v2.json",
+  "$schema": "https://wails.io/schemas/config.v3.json",
   "name": "gotify-desktop",
   "outputfilename": "gotify-desktop",
-  "frontend:install": "npm install",
-  "frontend:build": "npm run build",
-  "frontend:dev:watcher": "npm run dev",
-  "frontend:dev:serverUrl": "auto",
-  "build:tags": "webkit2_41",
+  "frontend": {
+    "dir": "./frontend",
+    "install": "npm install",
+    "build": "npm run build",
+    "dev": "npm run dev",
+    "devServerUrl": "http://localhost:5173"
+  },
   "author": {
     "name": "Markus Busche",
     "email": "m.busche@gmail.com"
@@ -17,6 +19,5 @@
     "productVersion": "0.1.13",
     "copyright": "Copyright \u00a9 Markus Busche",
     "comments": "Cross-platform Gotify desktop notification client"
-  },
-  "nsisType": "multiple"
+  }
 }

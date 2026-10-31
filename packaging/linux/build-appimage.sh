@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-BINARY="${1:-$ROOT/build/bin/gotify-desktop}"
+BINARY="${1:-$ROOT/bin/gotify-desktop}"
 OUT_DIR="${2:-$ROOT/dist}"
 ARCH_NAME="${3:-linux-amd64}"
 VERSION="${APP_VERSION:-0.0.0}"

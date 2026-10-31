@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-APP="${1:-$ROOT/build/bin/gotify-desktop.app}"
+APP="${1:-$ROOT/bin/gotify-desktop.app}"
 OUT_DIR="${2:-$ROOT/dist}"
 ARCH_NAME="${3:-darwin-arm64}"
 VOLNAME="${DMG_VOLNAME:-Gotify Desktop}"

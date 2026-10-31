@@ -2,12 +2,12 @@ package tray
 
 // Callbacks wired by the application.
 type Callbacks struct {
-	OnOpen      func()
-	OnSettings  func()
-	OnHistory   func()
-	OnSend      func()
-	OnAutostart func()
-	OnLanguage  func(code string)
+	OnOpen              func()
+	OnSettings          func()
+	OnHistory           func()
+	OnSend              func()
+	OnAutostart         func(enabled bool)
+	OnLanguage          func(code string)
 	OnAboutLicense      func()
 	OnAboutVersion      func()
 	OnAboutCheckUpdates func()
@@ -31,26 +31,26 @@ type Language struct {
 
 // Labels are localized tray strings (resolved by the app via i18n).
 type Labels struct {
-	Tooltip          string
-	StatusStarting   string
-	StatusTooltip    string
-	Open             string
-	OpenTooltip      string
-	Settings         string
-	SettingsTooltip  string
-	History          string
-	HistoryTooltip   string
-	Send             string
-	SendTooltip      string
-	Autostart        string
-	AutostartTooltip string
-	Language         string
-	LanguageTooltip  string
-	About            string
-	AboutTooltip     string
-	AboutAuthor         string
-	AboutLicense        string
-	AboutLicenseTooltip string
+	Tooltip                   string
+	StatusStarting            string
+	StatusTooltip             string
+	Open                      string
+	OpenTooltip               string
+	Settings                  string
+	SettingsTooltip           string
+	History                   string
+	HistoryTooltip            string
+	Send                      string
+	SendTooltip               string
+	Autostart                 string
+	AutostartTooltip          string
+	Language                  string
+	LanguageTooltip           string
+	About                     string
+	AboutTooltip              string
+	AboutAuthor               string
+	AboutLicense              string
+	AboutLicenseTooltip       string
 	AboutVersion              string
 	AboutVersionTooltip       string
 	AboutCheckUpdates         string
