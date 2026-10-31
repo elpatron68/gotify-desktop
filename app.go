@@ -217,6 +217,9 @@ func (a *App) startup(ctx context.Context) {
 // Connect form despite a saved client token.
 func (a *App) domReady(ctx context.Context) {
 	a.ctx = ctx
+	// Apply saved geometry before any show/hide so maximise cannot race-show the
+	// window when starting to tray.
+	a.RestoreWindowState()
 	a.emitStatus()
 	a.mu.Lock()
 	configured := a.cfg.Configured()
@@ -237,6 +240,7 @@ func (a *App) domReady(ctx context.Context) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	// Geometry is saved in beforeClose; the window is already destroyed here.
 	a.stopStream()
 	if a.tray != nil {
 		a.tray.Stop()
@@ -251,6 +255,7 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
+	a.SaveWindowState()
 	a.mu.Lock()
 	quitting := a.quitting
 	a.mu.Unlock()
@@ -259,6 +264,51 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	}
 	runtime.WindowHide(ctx)
 	return true
+}
+
+// RestoreWindowState applies the persisted window size, position and maximised
+// state. It does not show the window.
+func (a *App) RestoreWindowState() {
+	if a.ctx == nil {
+		return
+	}
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+	w, h := cfg.ResolvedWindowSize()
+	runtime.WindowSetSize(a.ctx, w, h)
+	if cfg.WindowPosSet && config.WindowPositionUsable(cfg.WindowX, cfg.WindowY, w, h) {
+		runtime.WindowSetPosition(a.ctx, cfg.WindowX, cfg.WindowY)
+	}
+	if cfg.WindowMaximised {
+		runtime.WindowMaximise(a.ctx)
+	}
+}
+
+// SaveWindowState persists the current window geometry. While maximised, the
+// last known normal bounds are kept and only the maximised flag is updated.
+func (a *App) SaveWindowState() {
+	if a.ctx == nil {
+		return
+	}
+	if runtime.WindowIsMinimised(a.ctx) {
+		return
+	}
+	w, h := runtime.WindowGetSize(a.ctx)
+	x, y := runtime.WindowGetPosition(a.ctx)
+	maxed := runtime.WindowIsMaximised(a.ctx)
+
+	a.mu.Lock()
+	cfg := config.MergeWindowGeometry(a.cfg, w, h, x, y, maxed)
+	if cfg == a.cfg {
+		a.mu.Unlock()
+		return
+	}
+	a.cfg = cfg
+	a.mu.Unlock()
+	if err := config.Save(cfg); err != nil {
+		applog.Printf("window geometry save: %v", err)
+	}
 }
 
 // GetStatus returns the current app status for the UI.

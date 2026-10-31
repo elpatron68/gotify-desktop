@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const appDirName = "gotify-desktop"
@@ -15,6 +16,13 @@ const appDirName = "gotify-desktop"
 const (
 	HistoryModeToasts = "toasts"
 	HistoryModeAll    = "all"
+)
+
+const (
+	DefaultWindowWidth  = 1100
+	DefaultWindowHeight = 800
+	MinWindowWidth      = 640
+	MinWindowHeight     = 480
 )
 
 // Config holds persistent application settings.
@@ -30,10 +38,52 @@ type Config struct {
 	Locale string `json:"locale,omitempty"`
 	// HistoryMode is "toasts" (default) or "all". Unknown/empty values normalize to toasts.
 	HistoryMode string `json:"history_mode,omitempty"`
+	// Window geometry. Width/height <=0 means unset (use defaults). WindowPosSet
+	// distinguishes a saved 0,0 position from "never placed".
+	WindowWidth     int  `json:"window_width,omitempty"`
+	WindowHeight    int  `json:"window_height,omitempty"`
+	WindowX         int  `json:"window_x,omitempty"`
+	WindowY         int  `json:"window_y,omitempty"`
+	WindowPosSet    bool `json:"window_pos_set,omitempty"`
+	WindowMaximised bool `json:"window_maximised,omitempty"`
 }
 
 func Default() Config {
 	return Config{MinPriority: 0, HistoryMode: HistoryModeToasts}
+}
+
+func ClampWindowSize(w, h int) (int, int) {
+	if w < MinWindowWidth {
+		w = MinWindowWidth
+	}
+	if h < MinWindowHeight {
+		h = MinWindowHeight
+	}
+	return w, h
+}
+
+func (c Config) ResolvedWindowSize() (int, int) {
+	w, h := c.WindowWidth, c.WindowHeight
+	if w <= 0 {
+		w = DefaultWindowWidth
+	}
+	if h <= 0 {
+		h = DefaultWindowHeight
+	}
+	return ClampWindowSize(w, h)
+}
+
+func WindowPositionUsable(x, y, w, h int) bool {
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	if x+w < 50 || y+h < 50 {
+		return false
+	}
+	if x > 10000 || y > 10000 {
+		return false
+	}
+	return true
 }
 
 // Dir returns the platform config directory for this app.
@@ -75,8 +125,38 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// Save writes config atomically.
+// saveMu serialises Save so concurrent writers cannot clobber config.json.tmp.
+var saveMu sync.Mutex
+
+// MergeWindowGeometry applies observed window geometry to cfg. While maximised,
+// existing normal bounds are kept and the maximised flag is set. If size was
+// never saved, defaults are used — never the maximised (often fullscreen) size.
+// Otherwise bounds are overwritten and maximised cleared.
+func MergeWindowGeometry(cfg Config, w, h, x, y int, maximised bool) Config {
+	w, h = ClampWindowSize(w, h)
+	if maximised {
+		cfg.WindowMaximised = true
+		if cfg.WindowWidth <= 0 || cfg.WindowHeight <= 0 {
+			cfg.WindowWidth = DefaultWindowWidth
+			cfg.WindowHeight = DefaultWindowHeight
+		}
+		if !cfg.WindowPosSet {
+			cfg.WindowX, cfg.WindowY = x, y
+			cfg.WindowPosSet = true
+		}
+		return cfg
+	}
+	cfg.WindowWidth, cfg.WindowHeight = w, h
+	cfg.WindowX, cfg.WindowY = x, y
+	cfg.WindowPosSet = true
+	cfg.WindowMaximised = false
+	return cfg
+}
+
+// Save writes config atomically. Safe for concurrent use.
 func Save(cfg Config) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
 	dir, err := Dir()
 	if err != nil {
 		return err

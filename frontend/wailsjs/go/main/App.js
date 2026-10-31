@@ -70,6 +70,10 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function SaveWindowState() {
+  return window['go']['main']['App']['SaveWindowState']();
+}
+
 export function SetHistoryMode(arg1) {
   return window['go']['main']['App']['SetHistoryMode'](arg1);
 }

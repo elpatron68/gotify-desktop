@@ -37,6 +37,8 @@ export function ProxyMiddleware():Promise<any>;
 
 export function Quit():Promise<void>;
 
+export function SaveWindowState():Promise<void>;
+
 export function SetHistoryMode(arg1:string):Promise<void>;
 
 export function SetLocale(arg1:string):Promise<void>;

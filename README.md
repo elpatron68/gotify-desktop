@@ -10,6 +10,7 @@ Cross-platform Gotify desktop client built with [Wails v2](https://wails.io) and
 - **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
 - **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
 - Window close minimizes to tray / background (quit via tray or app menu)
+- Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position), and on Wayland the reported position may be 0,0
 - Embedded Gotify **web UI** (management) in an in-app iframe
 
 ## Requirements
@@ -186,7 +187,7 @@ Settings are stored under the user config directory:
 - macOS: `~/Library/Application Support/gotify-desktop/config.json`
 - Windows: `%AppData%\gotify-desktop\config.json`
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`). Notification history is stored as `history.json` in the same directory.
+Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`), `window_width` / `window_height` (0 or missing = defaults 1100×800; clamped to min 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`. Notification history is stored as `history.json` in the same directory.
 
 ### Internationalization
 
