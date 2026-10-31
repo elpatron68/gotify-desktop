@@ -49,5 +49,15 @@
   "status.stream_disconnected": "Stream disconnected",
   "status.not_configured": "Not configured",
   "status.notify_fallback": "Notify: fallback",
-  "status.notify_error": "Notify error: {{.Error}}"
+  "status.notify_error": "Notify error: {{.Error}}",
+
+  "history.title": "Recent notifications",
+  "history.back": "Back",
+  "history.mode_all": "All messages",
+  "history.mode_toasts_hint": "Show only toast notifications",
+  "history.clear": "Clear",
+  "history.empty": "No notifications yet.",
+  "history.copy": "Copy",
+  "history.copied": "Copied",
+  "history.copy_failed": "Copy failed"
 }

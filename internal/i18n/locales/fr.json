@@ -49,5 +49,15 @@
   "status.stream_disconnected": "Flux déconnecté",
   "status.not_configured": "Non configuré",
   "status.notify_fallback": "Notify : secours",
-  "status.notify_error": "Erreur notify : {{.Error}}"
+  "status.notify_error": "Erreur notify : {{.Error}}",
+
+  "history.title": "Notifications récentes",
+  "history.back": "Retour",
+  "history.mode_all": "Tous les messages",
+  "history.mode_toasts_hint": "Afficher uniquement les notifications toast",
+  "history.clear": "Effacer",
+  "history.empty": "Aucune notification pour le moment.",
+  "history.copy": "Copier",
+  "history.copied": "Copié",
+  "history.copy_failed": "Échec de la copie"
 }

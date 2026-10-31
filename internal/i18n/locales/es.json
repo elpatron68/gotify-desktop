@@ -49,5 +49,15 @@
   "status.stream_disconnected": "Flujo desconectado",
   "status.not_configured": "No configurado",
   "status.notify_fallback": "Notify: respaldo",
-  "status.notify_error": "Error de notify: {{.Error}}"
+  "status.notify_error": "Error de notify: {{.Error}}",
+
+  "history.title": "Notificaciones recientes",
+  "history.back": "Atrás",
+  "history.mode_all": "Todos los mensajes",
+  "history.mode_toasts_hint": "Mostrar solo notificaciones emergentes",
+  "history.clear": "Borrar",
+  "history.empty": "Aún no hay notificaciones.",
+  "history.copy": "Copiar",
+  "history.copied": "Copiado",
+  "history.copy_failed": "Error al copiar"
 }

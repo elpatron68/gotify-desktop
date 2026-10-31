@@ -49,5 +49,15 @@
   "status.stream_disconnected": "Stream getrennt",
   "status.not_configured": "Nicht konfiguriert",
   "status.notify_fallback": "Notify: Fallback",
-  "status.notify_error": "Notify-Fehler: {{.Error}}"
+  "status.notify_error": "Notify-Fehler: {{.Error}}",
+
+  "history.title": "Letzte Benachrichtigungen",
+  "history.back": "Zurück",
+  "history.mode_all": "Alle Nachrichten",
+  "history.mode_toasts_hint": "Nur Toast-Benachrichtigungen anzeigen",
+  "history.clear": "Löschen",
+  "history.empty": "Noch keine Benachrichtigungen.",
+  "history.copy": "Kopieren",
+  "history.copied": "Kopiert",
+  "history.copy_failed": "Kopieren fehlgeschlagen"
 }
