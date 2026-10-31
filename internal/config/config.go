@@ -20,6 +20,7 @@ type Config struct {
 	ClientToken   string `json:"client_token"`
 	MinPriority   int    `json:"min_priority"`
 	LastMessageID uint   `json:"last_message_id,omitempty"`
+	Autostart     bool   `json:"autostart,omitempty"`
 }
 
 func Default() Config {

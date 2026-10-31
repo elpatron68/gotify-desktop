@@ -18,9 +18,11 @@ import (
 )
 
 const (
-	windowsAppID = "Gotify.Desktop"
-	// Explorer's toast host is almost always allowed to show banners.
-	explorerAppID = `Microsoft.Windows.Explorer`
+	// windowsAppID is both the AUMID and the DisplayName shown on toasts /
+	// Action Center. go-toast writes DisplayName from AppID — use a pretty name.
+	windowsAppID = "Gotify Desktop"
+	// Last-resort hosts if our AUMID toast is blocked.
+	explorerAppID   = `Microsoft.Windows.Explorer`
 	powershellAppID = `{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe`
 )
 
@@ -35,48 +37,41 @@ func showPlatformToast(title, body string) error {
 		if windowsRegErr != nil {
 			applog.Printf("toast register: %v", windowsRegErr)
 		} else {
-			applog.Printf("toast register: AUMID=%s ok", windowsAppID)
+			applog.Printf("toast register: AUMID=%q ok", windowsAppID)
 		}
 	})
 
-	// Prefer hosts Windows already trusts for banners. Custom AUMIDs often report
-	// Setting=Enabled while producing no visible toast on unpackaged Win32 apps.
+	// Prefer our branded AUMID so Action Center shows "Gotify Desktop", not
+	// wails.localhost / File Explorer / PowerShell.
+	if err := goToastPush(title, body); err != nil {
+		applog.Printf("toast go-toast Push failed: %v", err)
+	} else {
+		applog.Printf("toast go-toast Push ok appID=%q", windowsAppID)
+		return nil
+	}
+	if err := powershellToast(windowsAppID, title, body); err != nil {
+		applog.Printf("toast fail method=gotify-aumid: %v", err)
+	} else {
+		applog.Printf("toast Show() returned ok method=gotify-aumid")
+		return nil
+	}
+
 	attempts := []struct {
 		name  string
 		appID string
 	}{
 		{"explorer-host", explorerAppID},
 		{"powershell-host", powershellAppID},
-		{"gotify-aumid", windowsAppID},
 	}
-
 	var errs []string
-	var anyOK bool
 	for _, a := range attempts {
-		applog.Printf("toast try method=%s appID=%s title=%q", a.name, a.appID, title)
+		applog.Printf("toast try fallback method=%s appID=%s title=%q", a.name, a.appID, title)
 		if err := powershellToast(a.appID, title, body); err != nil {
 			applog.Printf("toast fail method=%s: %v", a.name, err)
 			errs = append(errs, a.name+": "+err.Error())
 			continue
 		}
-		applog.Printf("toast Show() returned ok method=%s", a.name)
-		anyOK = true
-		// Explorer/PowerShell hosts are the ones users actually see — stop there.
-		if a.name != "gotify-aumid" {
-			return nil
-		}
-	}
-
-	// Native go-toast as an extra channel (uses the registered AUMID + shortcut).
-	if err := goToastPush(title, body); err != nil {
-		applog.Printf("toast go-toast Push failed: %v", err)
-		errs = append(errs, "go-toast: "+err.Error())
-	} else {
-		applog.Printf("toast go-toast Push ok")
-		anyOK = true
-	}
-
-	if anyOK {
+		applog.Printf("toast Show() returned ok method=%s (fallback host)", a.name)
 		return nil
 	}
 	return fmt.Errorf("windows toast failed: %s", strings.Join(errs, "; "))
@@ -158,7 +153,6 @@ Write-Output ('notifier_ok setting=' + $n.Setting)
 	if err != nil {
 		return fmt.Errorf("%w (%s)", err, trimmed)
 	}
-	// Setting enum: 0=Enabled, 1=DisabledForApplication, 2=DisabledForUser, 3=DisabledByGroupPolicy, 4=DisabledByManifest
 	if strings.Contains(trimmed, "setting=1") || strings.Contains(trimmed, "setting=2") {
 		return fmt.Errorf("notifications disabled for this app (%s)", trimmed)
 	}
@@ -175,8 +169,6 @@ func ensureStartMenuShortcut(exe string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	// Create the .lnk and stamp System.AppUserModel.ID so Windows associates
-	// toasts with this unpackaged app.
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
 $WshShell = New-Object -ComObject WScript.Shell

@@ -12,33 +12,48 @@ var (
 	mu     sync.Mutex
 	logger *log.Logger
 	closer *os.File
+	stderr = log.New(os.Stderr, "gotify-desktop: ", log.LstdFlags|log.Lmsgprefix)
 )
 
 // Init opens %ConfigDir%/gotify-desktop/desktop.log (append). Safe to call multiple times.
+// After Close(), a subsequent Init() reopens the file.
 func Init() {
 	mu.Lock()
 	defer mu.Unlock()
-	if logger != nil {
+	initLocked()
+}
+
+// initLocked opens the log file if it is not already open. Caller must hold mu.
+func initLocked() {
+	if closer != nil {
 		return
 	}
-	logger = log.New(os.Stderr, "gotify-desktop: ", log.LstdFlags|log.Lmsgprefix)
 	dir, err := os.UserConfigDir()
 	if err != nil {
+		if logger == nil {
+			logger = stderr
+		}
 		return
 	}
 	logDir := filepath.Join(dir, "gotify-desktop")
 	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		if logger == nil {
+			logger = stderr
+		}
 		return
 	}
 	f, err := os.OpenFile(filepath.Join(logDir, "desktop.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
+		if logger == nil {
+			logger = stderr
+		}
 		return
 	}
 	closer = f
 	logger = log.New(f, "", log.LstdFlags)
 }
 
-// Close releases the log file.
+// Close releases the log file. Later Printf calls go to stderr until Init() runs again.
 func Close() {
 	mu.Lock()
 	defer mu.Unlock()
@@ -46,22 +61,18 @@ func Close() {
 		_ = closer.Close()
 		closer = nil
 	}
-	logger = log.New(os.Stderr, "gotify-desktop: ", log.LstdFlags|log.Lmsgprefix)
+	logger = stderr
 }
 
-// Printf writes a log line.
+// Printf writes a log line. Lazily initializes on first use.
 func Printf(format string, args ...any) {
 	mu.Lock()
-	l := logger
-	mu.Unlock()
-	if l == nil {
-		Init()
-		mu.Lock()
-		l = logger
-		mu.Unlock()
+	defer mu.Unlock()
+	if logger == nil {
+		initLocked()
 	}
-	if l != nil {
-		l.Printf(format, args...)
+	if logger != nil {
+		logger.Printf(format, args...)
 	}
 }
 

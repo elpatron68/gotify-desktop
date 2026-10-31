@@ -37,7 +37,9 @@ func main() {
 		MinWidth:          640,
 		MinHeight:         480,
 		HideWindowOnClose: true,
-		Menu:              app.buildMenu(),
+		// Start hidden; DomReady shows the window only when setup is required.
+		StartHidden: true,
+		Menu:        app.buildMenu(),
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.ProxyMiddleware(),

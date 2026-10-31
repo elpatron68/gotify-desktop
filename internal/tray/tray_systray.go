@@ -12,15 +12,17 @@ import (
 type Controller struct {
 	icon []byte
 	cb   Callbacks
+	opts Options
 
-	mu         sync.Mutex
-	statusItem *systray.MenuItem
-	started    bool
+	mu            sync.Mutex
+	statusItem    *systray.MenuItem
+	autostartItem *systray.MenuItem
+	started       bool
 }
 
 // New creates a tray controller. icon should be PNG bytes (Linux) or ICO (Windows).
-func New(icon []byte, cb Callbacks) *Controller {
-	return &Controller{icon: icon, cb: cb}
+func New(icon []byte, cb Callbacks, opts Options) *Controller {
+	return &Controller{icon: icon, cb: cb, opts: opts}
 }
 
 // Start runs the systray event loop in a background goroutine.
@@ -50,6 +52,21 @@ func (c *Controller) SetStatus(text string) {
 	}
 }
 
+// SetAutostartChecked updates the Start at login checkbox.
+func (c *Controller) SetAutostartChecked(enabled bool) {
+	c.mu.Lock()
+	item := c.autostartItem
+	c.mu.Unlock()
+	if item == nil {
+		return
+	}
+	if enabled {
+		item.Check()
+	} else {
+		item.Uncheck()
+	}
+}
+
 func (c *Controller) onReady() {
 	systray.SetTooltip("Gotify Desktop")
 	if len(c.icon) > 0 {
@@ -68,6 +85,10 @@ func (c *Controller) onReady() {
 	systray.AddSeparator()
 	open := systray.AddMenuItem("Open window", "Show the Gotify window")
 	settings := systray.AddMenuItem("Settings", "Open connection settings")
+	autostart := systray.AddMenuItemCheckbox("Start at login", "Launch Gotify Desktop when you log in", c.opts.AutostartEnabled)
+	c.mu.Lock()
+	c.autostartItem = autostart
+	c.mu.Unlock()
 	systray.AddSeparator()
 	quit := systray.AddMenuItem("Quit", "Exit Gotify Desktop")
 	go func() {
@@ -80,6 +101,10 @@ func (c *Controller) onReady() {
 			case <-settings.ClickedCh:
 				if c.cb.OnSettings != nil {
 					c.cb.OnSettings()
+				}
+			case <-autostart.ClickedCh:
+				if c.cb.OnAutostart != nil {
+					c.cb.OnAutostart()
 				}
 			case <-quit.ClickedCh:
 				if c.cb.OnQuit != nil {

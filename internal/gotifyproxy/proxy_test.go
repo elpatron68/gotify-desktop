@@ -45,6 +45,9 @@ func TestInjectSessionBootstrapRewritesWebSocket(t *testing.T) {
 	if !strings.Contains(s, "gotify-login-key") {
 		t.Fatal("expected localStorage token key for Gotify ≤2.x")
 	}
+	if !strings.Contains(s, "window.Notification") {
+		t.Fatal("expected Notification stub to avoid duplicate browser toasts")
+	}
 }
 
 func TestStartWSProxy(t *testing.T) {

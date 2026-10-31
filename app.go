@@ -9,6 +9,7 @@ import (
 
 	"github.com/elpatron68/gotify-desktop/internal/applog"
 	"github.com/elpatron68/gotify-desktop/internal/auth"
+	"github.com/elpatron68/gotify-desktop/internal/autostart"
 	"github.com/elpatron68/gotify-desktop/internal/config"
 	"github.com/elpatron68/gotify-desktop/internal/gotifyproxy"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
@@ -44,22 +45,30 @@ type App struct {
 	lastErr   string
 	quitting  bool
 
-	auth     *auth.Client
-	stream   *stream.Client
-	notify   *notify.Notifier
-	tray     *tray.Controller
-	proxy    *gotifyproxy.Proxy
-	trayIcon []byte
+	auth      *auth.Client
+	stream    *stream.Client
+	notify    *notify.Notifier
+	tray      *tray.Controller
+	proxy     *gotifyproxy.Proxy
+	autostart *autostart.Manager
+	trayIcon  []byte
+
+	autostartMenuItem *menu.MenuItem
 }
 
 // NewApp creates the application.
 func NewApp(trayIcon []byte) *App {
+	as, err := autostart.New()
+	if err != nil {
+		as = nil
+	}
 	return &App{
-		auth:     auth.New(),
-		notify:   &notify.Notifier{},
-		proxy:    &gotifyproxy.Proxy{},
-		view:     "setup",
-		trayIcon: trayIcon,
+		auth:      auth.New(),
+		notify:    &notify.Notifier{},
+		proxy:     &gotifyproxy.Proxy{},
+		autostart: as,
+		view:      "setup",
+		trayIcon:  trayIcon,
 	}
 }
 
@@ -70,11 +79,16 @@ func (a *App) ProxyMiddleware() func(http.Handler) http.Handler {
 
 // buildMenu creates the native application menu (needed on macOS where systray is disabled).
 func (a *App) buildMenu() *menu.Menu {
+	enabled := a.autostart != nil && a.autostart.IsEnabled()
+	a.autostartMenuItem = menu.Checkbox("Start at Login", enabled, nil, func(_ *menu.CallbackData) {
+		a.ToggleAutostart()
+	})
 	return menu.NewMenuFromItems(
 		menu.SubMenu("Gotify", menu.NewMenuFromItems(
 			menu.Text("Show Window", nil, func(_ *menu.CallbackData) { a.ShowWindow() }),
 			menu.Text("Settings", nil, func(_ *menu.CallbackData) { a.OpenSettings() }),
 			menu.Text("Test Notification", nil, func(_ *menu.CallbackData) { _ = a.TestNotification() }),
+			a.autostartMenuItem,
 			menu.Separator(),
 			menu.Text("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) { a.Quit() }),
 		)),
@@ -105,11 +119,13 @@ func (a *App) startup(ctx context.Context) {
 		applog.Printf("ws proxy start failed: %v", err)
 	}
 
+	autostartOn := a.syncAutostartOnStartup()
 	a.tray = tray.New(a.trayIcon, tray.Callbacks{
-		OnOpen:     a.ShowWindow,
-		OnSettings: a.OpenSettings,
-		OnQuit:     a.Quit,
-	})
+		OnOpen:      a.ShowWindow,
+		OnSettings:  a.OpenSettings,
+		OnAutostart: a.ToggleAutostart,
+		OnQuit:      a.Quit,
+	}, tray.Options{AutostartEnabled: autostartOn})
 	a.tray.Start()
 
 	if a.cfg.Configured() {
@@ -137,11 +153,15 @@ func (a *App) domReady(ctx context.Context) {
 	token := a.cfg.ClientToken
 	a.mu.Unlock()
 	if configured && view == "gotify" {
-		applog.Printf("domReady: restoring gotify view")
+		applog.Printf("domReady: restoring gotify view (hiding to tray)")
 		runtime.EventsEmit(a.ctx, "show-gotify", map[string]string{
 			"token":  token,
 			"uiPath": gotifyproxy.UIPrefix + "/",
 		})
+		// Already connected from a saved session — run in tray, don't leave the window open.
+		runtime.WindowHide(a.ctx)
+	} else {
+		runtime.WindowShow(a.ctx)
 	}
 }
 
@@ -251,6 +271,9 @@ func (a *App) Connect(serverURL, username, password string) error {
 		"token":     cfg.ClientToken,
 		"uiPath":    gotifyproxy.UIPrefix + "/",
 	})
+	// After a successful connect, return to the tray like a notification client.
+	runtime.WindowHide(a.ctx)
+	applog.Printf("connect: window hidden to tray")
 	return nil
 }
 
@@ -362,8 +385,7 @@ func (a *App) handleMessage(msg stream.Message) {
 		id = fmt.Sprintf("msg-%d", msg.AppID)
 	}
 	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
-	// Ask the iframe to refresh its message list (covers WS bridge lag) and
-	// ask the shell to show a browser/OS notification as a second channel.
+	// Refresh the iframe message list if it is open; OS toast is only via notify.Show.
 	if a.ctx != nil {
 		runtime.EventsEmit(a.ctx, "gotify-message", map[string]string{
 			"id":    id,
@@ -393,6 +415,76 @@ func (a *App) handleMessage(msg stream.Message) {
 // TestNotification sends a local test notification (helps diagnose desktop notify setup).
 func (a *App) TestNotification() error {
 	return a.notify.Show("test", "Gotify Desktop", "Test notification from Gotify Desktop")
+}
+
+// ToggleAutostart flips login autostart and updates tray / app menu checkmarks.
+func (a *App) ToggleAutostart() {
+	if a.autostart == nil {
+		applog.Printf("autostart unavailable")
+		return
+	}
+	enabled, err := a.autostart.Toggle()
+	if err != nil {
+		applog.Printf("autostart toggle failed: %v", err)
+		a.setError("autostart: " + err.Error())
+		a.applyAutostartUI(a.autostart.IsEnabled())
+		a.emitStatus()
+		return
+	}
+	a.persistAutostart(enabled)
+	a.applyAutostartUI(enabled)
+	applog.Printf("autostart enabled=%v", enabled)
+}
+
+// syncAutostartOnStartup refreshes OS registration from config / current path.
+func (a *App) syncAutostartOnStartup() bool {
+	if a.autostart == nil {
+		return false
+	}
+	enabled := a.autostart.IsEnabled()
+	// Config preference wins when set but OS registration was lost (moved binary).
+	if a.cfg.Autostart && !enabled {
+		if err := a.autostart.Enable(); err != nil {
+			applog.Printf("autostart re-enable failed: %v", err)
+		} else {
+			enabled = true
+		}
+	}
+	// Keep registration path current when already enabled.
+	if enabled {
+		if err := a.autostart.Enable(); err != nil {
+			applog.Printf("autostart refresh failed: %v", err)
+		}
+	}
+	if a.cfg.Autostart != enabled {
+		a.persistAutostart(enabled)
+	}
+	if a.autostartMenuItem != nil {
+		a.autostartMenuItem.Checked = enabled
+	}
+	return enabled
+}
+
+func (a *App) persistAutostart(enabled bool) {
+	a.mu.Lock()
+	a.cfg.Autostart = enabled
+	cfg := a.cfg
+	a.mu.Unlock()
+	if err := config.Save(cfg); err != nil {
+		applog.Printf("autostart save config: %v", err)
+	}
+}
+
+func (a *App) applyAutostartUI(enabled bool) {
+	if a.tray != nil {
+		a.tray.SetAutostartChecked(enabled)
+	}
+	if a.autostartMenuItem != nil {
+		a.autostartMenuItem.Checked = enabled
+		if a.ctx != nil {
+			runtime.MenuUpdateApplicationMenu(a.ctx)
+		}
+	}
 }
 
 func (a *App) setError(msg string) {
