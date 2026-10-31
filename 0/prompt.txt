@@ -1,0 +1,13 @@
+füge noch ein "About" Menü zum Tray Icon hinzu:
+
+- Author ("Markus F.J. Busche"), Lizenz, Link zu Repo, Version
+
+---
+
+Bitte noch
+- "Lizenz..." mit LICENSE im Repo verlinken
+- "Version..." mit  https://github.com/elpatron68/gotify-desktop/releases/latest verlinken
+
+---
+
+commit, push, pr, merge
