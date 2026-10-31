@@ -133,9 +133,9 @@ jobs:
           ls -la bin/ || true
           ls -la build/windows/nsis/ || true
 
-      - name: Build (macOS)
+      - name: Package macOS (.app)
         if: runner.os == 'macOS'
-        run: wails3 build GOOS=darwin GOARCH=arm64
+        run: wails3 package GOOS=darwin GOARCH=arm64
         env:
           GOOS: darwin
           GOARCH: arm64
