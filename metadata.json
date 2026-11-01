@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6BBJ43NQ0RKP5YBV416R0NQ",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "build/config.yml",
+    "build/darwin/Info.dev.plist",
+    "build/darwin/Info.plist",
+    "build/linux/nfpm/nfpm.yaml",
+    "build/windows/info.json",
+    "build/windows/msix/app_manifest.xml",
+    "build/windows/msix/template.xml",
+    "build/windows/nsis/project.nsi",
+    "build/windows/nsis/wails_tools.nsh",
+    "internal/version/version.go",
+    "wails.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5365,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 398208,
+    "output_tokens": 1820,
+    "api_call_count": 2
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
