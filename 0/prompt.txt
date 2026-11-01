@@ -1,0 +1,9 @@
+push
+
+---
+
+Füge die Screenshots dem @README.md hinzu - eventuell müssen sie kleiner skaliert werden
+
+---
+
+Sehr schön. Commit und direkter push ohne actions - wie gerade.
