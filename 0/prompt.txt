@@ -1,0 +1,5 @@
+Copy Button in Notification Liste: Lieber ein passendes Icon statt "Copy" Text (platzsparend)
+
+---
+
+commit, pr
