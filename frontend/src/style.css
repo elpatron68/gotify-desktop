@@ -177,6 +177,22 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.history-item button.history-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.history-copy svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+
 .history-actions {
   display: flex;
   align-items: center;
