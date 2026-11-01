@@ -1,0 +1,9 @@
+haben wir daüber hinaus noch überflüssige dateien im repository?
+
+---
+
+okay, räume alles weg, was nicht mehr benötigt wird
+
+---
+
+wieder: commit und push ohne ci

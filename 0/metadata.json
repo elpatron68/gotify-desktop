@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6BFQ1WNMWK1VPVHGEZ9HV22",
+  "session_id": "3dd5d763-c557-4719-b9f8-ba6a321a770a",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-01T12:00:30.376128992Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "save_step_count": 1,
+  "files_touched": [
+    ".github/ISSUE_TEMPLATE/custom.md",
+    "build/README.md",
+    "build/linux/Taskfile.yml",
+    "build/linux/appimage/build.sh",
+    "build/linux/desktop",
+    "build/linux/gotify-desktop.desktop",
+    "build/linux/nfpm/nfpm.yaml",
+    "build/linux/nfpm/scripts/postinstall.sh",
+    "build/linux/nfpm/scripts/postremove.sh",
+    "build/linux/nfpm/scripts/preinstall.sh",
+    "build/linux/nfpm/scripts/preremove.sh",
+    "build/windows/Taskfile.yml",
+    "build/windows/msix/app_manifest.xml",
+    "build/windows/msix/template.xml",
+    "docs/superpowers/plans/2026-10-31-notification-history.md",
+    "docs/superpowers/plans/2026-10-31-window-geometry.md",
+    "docs/superpowers/specs/2026-10-31-notification-history-design.md",
+    "docs/superpowers/specs/2026-10-31-window-geometry-design.md",
+    "frontend/src/assets/fonts/OFL.txt",
+    "frontend/src/assets/fonts/nunito-v16-latin-regular.woff2",
+    "frontend/src/assets/images/logo-universal.png"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "a3d2a6cdfb57",
+  "checkpoint_transcript_start": 63,
+  "transcript_lines_at_start": 63,
+  "compact_transcript_start": 18,
+  "token_usage": {
+    "input_tokens": 39296,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2440448,
+    "output_tokens": 15318,
+    "api_call_count": 3
+  },
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "duration_ms": 193769,
+    "turn_count": 10
+  }
+}
