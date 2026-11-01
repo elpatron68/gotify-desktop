@@ -2,20 +2,28 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes go into the latest release. Older releases are not updated.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| latest  | :white_check_mark: |
+| older   | :x:                |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Report suspected vulnerabilities through GitHub private vulnerability reporting:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+https://github.com/elpatron68/gotify-desktop/security/advisories/new
+
+Please include the app version, operating system, what an attacker can do, and steps to reproduce. A proof of concept is welcome when you have one.
+
+In scope: this desktop application, including how it stores the Gotify client token. Vulnerabilities in the Gotify server belong to that project.
+
+You can expect:
+
+- an acknowledgement within 3 business days
+- a status update at least once a week until the report is closed
+- if we accept it: a fix prepared in private, then a release and a GitHub Security Advisory. We credit you unless you ask us not to. We aim to ship a fix or publish an advisory within 90 days
+- if we decline it: a short explanation. You may publish your findings after that
+
+Please wait until a fix is released before describing the issue in public. There is no bug bounty.
