@@ -7,7 +7,7 @@ The structure is:
 
 * `Taskfile.yml` / `config.yml` - shared build tasks and product metadata
 * `darwin` - macOS specific files
-* `linux` - Linux desktop / AppImage helpers
+* `linux` - Linux build tasks
 * `windows` - Windows specific files (including `nsis/`)
 
 ## Mac
