@@ -207,6 +207,30 @@ function flashHistoryToast(msg) {
   }, 1500);
 }
 
+function copyIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+
+  const back = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  back.setAttribute('d', 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2');
+
+  const front = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  front.setAttribute('width', '14');
+  front.setAttribute('height', '14');
+  front.setAttribute('x', '8');
+  front.setAttribute('y', '8');
+  front.setAttribute('rx', '2');
+
+  svg.append(back, front);
+  return svg;
+}
+
 function renderHistory(entries) {
   historyList.textContent = '';
   const list = entries || [];
@@ -235,7 +259,11 @@ function renderHistory(entries) {
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
-    copyBtn.textContent = t('history.copy');
+    copyBtn.className = 'history-copy';
+    const copyLabel = t('history.copy');
+    copyBtn.setAttribute('aria-label', copyLabel);
+    copyBtn.title = copyLabel;
+    copyBtn.append(copyIcon());
     copyBtn.addEventListener('click', async () => {
       try {
         const md = await FormatHistoryEntryMarkdown(entry.id);
