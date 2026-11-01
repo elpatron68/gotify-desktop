@@ -22,7 +22,7 @@ Unicode true
 ## !define INFO_PROJECTNAME    "my-project" # Default "gotify-desktop"
 ## !define INFO_COMPANYNAME    "My Company" # Default "elpatron68"
 ## !define INFO_PRODUCTNAME    "My Product Name" # Default "Gotify Desktop"
-## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.2.0"
+## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.2.1"
 ## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "Copyright © Markus Busche"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"

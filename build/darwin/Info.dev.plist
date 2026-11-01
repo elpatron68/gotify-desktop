@@ -10,11 +10,11 @@
         <key>CFBundleIdentifier</key>
             <string>me.elpatron.gotify-desktop</string>
         <key>CFBundleVersion</key>
-            <string>0.2.0</string>
+            <string>0.2.1</string>
         <key>CFBundleGetInfoString</key>
             <string>Cross-platform Gotify desktop notification client</string>
         <key>CFBundleShortVersionString</key>
-            <string>0.2.0</string>
+            <string>0.2.1</string>
         <key>CFBundleIconFile</key>
             <string>icons</string>
         <key>CFBundleIconName</key>
