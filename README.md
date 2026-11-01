@@ -12,6 +12,28 @@ Desktop client for a self-hosted [Gotify](https://gotify.net/) server. The app s
 
 Prebuilt packages are available for **Linux (x86_64)**, **Windows (x86_64)**, and **macOS (Apple Silicon)**.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/screenshots/login.png" alt="Sign-in screen" width="100%">
+      <br>
+      <sub>Sign in. The password is not stored.</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/screenshots/recent-notifications.png" alt="Recent notifications" width="100%">
+      <br>
+      <sub>Recent notifications</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <img src="docs/screenshots/send-message.png" alt="Send a message" width="100%">
+      <br>
+      <sub>Send a message to an application</sub>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - Sign in with your Gotify username and password. The password is not stored; the app creates a client token.
