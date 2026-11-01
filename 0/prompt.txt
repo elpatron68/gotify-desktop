@@ -1,0 +1,14 @@
+Das Readme.md wendet sich derzeit primär an entwickler. Schreibe es etwas anwenderfreudlicher:
+
+- Features
+- Installationsanweisungen für die unterstützten OS (aus Release Downlod)
+
+darunter die entwickler-informationen
+
+---
+
+README soll englisch sein
+
+---
+
+ich glaube, main ist protected. können wir dennoch die workflows überspringen für diesen commit?
