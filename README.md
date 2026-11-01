@@ -6,66 +6,78 @@
 [![Wails](https://img.shields.io/badge/Wails-v3.0.0-red)](https://v3.wails.io)
 [![Go](https://img.shields.io/github/go-mod/go-version/elpatron68/gotify-desktop?logo=go&logoColor=white)](https://github.com/elpatron68/gotify-desktop/blob/main/go.mod)
 [![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#requirements)
+[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#installation)
 
-Cross-platform Gotify desktop client built with [Wails v3](https://v3.wails.io) and Go.
+Desktop client for a self-hosted [Gotify](https://gotify.net/) server. The app shows new messages as desktop notifications, keeps a short history, and stays available from the system tray.
+
+Prebuilt packages are available for **Linux (x86_64)**, **Windows (x86_64)**, and **macOS (Apple Silicon)**.
 
 ## Features
 
-- Connect with Gotify username/password; the app creates a **client token** (password is not stored)
-- Native desktop **notifications** via Gotify WebSocket `/stream`
-- **System tray** with open / recent notifications / settings / start-at-login / quit on Linux, Windows and macOS (Wails built-in tray; macOS also keeps the application menu)
-- **Notification history**: the last 100 notifications are kept in `history.json`; open **Recent notifications** from the tray (or the app menu on macOS) to browse them, copy an entry as Markdown, clear the list, or switch between toast-only and all messages (`history_mode`)
-- **Send message**: open **Send message** from the tray (or the app menu on macOS), pick one of your Gotify applications, enter title / message / priority, and push to that app channel (app token stays in the Go backend)
-- **Automatic updates**: on startup (at most every 24 hours) and via **Check for Updates** in About, the app queries GitHub Releases, asks before download/install, verifies `SHA256SUMS`, then replaces the running package
-- **Start at login** via OS autostart (Windows Run key, Linux XDG autostart, macOS LaunchAgent)
-- Window close minimizes to tray / background (quit via tray or app menu)
-- Window size, position and maximised state are remembered. Known limitations: positions that are negative or on a monitor left of/above the primary one may be treated as unusable (the window then opens at the default position); under **Wayland** the reported position is often `0,0` (see below)
-- Embedded Gotify **web UI** (management) in an in-app iframe
+- Sign in with your Gotify username and password. The password is not stored; the app creates a client token.
+- Native desktop notifications when the server sends a new message.
+- System tray on Linux, Windows, and macOS: open the window, recent notifications, send a message, settings, start at login, and quit. macOS also keeps the application menu.
+- History of the last 100 notifications. Copy an entry as Markdown or clear the list. Store toast notifications only, or every message.
+- Send a message: pick one of your Gotify applications and submit a title, body, and priority. The application token stays inside the app.
+- Updates on startup (at most every 24 hours) and via **Check for Updates**. The app asks before installing and checks the file against `SHA256SUMS`.
+- Start at login.
+- Closing the window leaves the app in the tray. Quit from the tray menu or the application menu.
+- Window size, position, and maximised state are remembered. Positions on a monitor left of or above the primary display may be discarded. Under Wayland the system often reports `0,0`, so only size and maximised state are restored.
+- The Gotify web UI is embedded in the app.
+- Interface languages: German, English, French, and Spanish. The default is the operating-system language, or English if that language is not bundled. Change it via **Language** in the tray or the application menu.
 
-## Requirements
+## Installation
 
-| Platform | Prerequisites |
-|----------|----------------|
-| Linux | Go 1.26+, Node.js 24+, `libgtk-4-dev`, `libwebkitgtk-6.0-dev`, `gcc`, `pkg-config` |
-| Windows | Go 1.26+, Node.js 24+, WebView2 runtime |
-| macOS | Go 1.26+, Node.js 24+, Xcode Command Line Tools |
+The current version is on the [releases page](https://github.com/elpatron68/gotify-desktop/releases/latest). The links below always point at that release.
 
-Ubuntu 24.04 example (GTK4 / WebKitGTK 6.0):
+| System | Recommended | Alternative |
+|--------|-------------|-------------|
+| Linux x86_64 | [AppImage](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-linux-amd64.AppImage) | [Binary](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-linux-amd64) |
+| Windows x86_64 | [Setup](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-windows-amd64-setup.exe) | [Portable EXE](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-windows-amd64.exe) |
+| macOS Apple Silicon | [DMG](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-darwin-arm64.dmg) | [ZIP](https://github.com/elpatron68/gotify-desktop/releases/latest/download/gotify-desktop-darwin-arm64.zip) |
 
-```bash
-sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
-```
+Checksums: [SHA256SUMS](https://github.com/elpatron68/gotify-desktop/releases/latest/download/SHA256SUMS). The packages are not signed.
 
-### Linux system tray (AppIndicator)
+Other architectures (Linux arm64, Windows ARM, Intel Macs) are not built.
 
-On Linux the tray icon is provided by the Wails v3 system tray (Status Notifier Item / AppIndicator on D-Bus). Unlike Windows and macOS, most Linux desktops do **not** draw tray icons themselves — a panel applet (or extension) must host them.
+### Linux
 
-If that host component is missing, the app can still run, but:
+The AppImage and the binary need GTK 4 and WebKitGTK 6.0 from the system. The AppImage does not bundle those libraries. The tray icon also needs an AppIndicator library and a panel that hosts status icons.
 
-- no Gotify tray icon appears
-- “minimize to tray” feels like the window simply vanished
-- Quit / Settings / Open are only reachable via the window menu (where available)
-
-#### Runtime package
-
-On Debian/Ubuntu and derivatives, install the Ayatana AppIndicator library (used by many trays):
+Ubuntu 24.04:
 
 ```bash
-sudo apt install libayatana-appindicator3-1
+sudo apt install libgtk-4-1 libwebkitgtk-6.0-4 libayatana-appindicator3-1 libfuse2t64
 ```
 
-Related packages you may already have via the desktop:
+`libfuse2t64` is only required for the AppImage. Without FUSE:
 
-| Package | Role |
-|---------|------|
-| `libayatana-appindicator3-1` | Runtime library the tray client talks to |
-| `libayatana-appindicator3-dev` | Only needed if you **build** against AppIndicator headers |
-| `gir1.2-ayatanaappindicator3-0.1` | GObject introspection (often pulled in automatically) |
+```bash
+chmod +x gotify-desktop-linux-amd64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./gotify-desktop-linux-amd64.AppImage
+```
 
-Older docs mention `libappindicator3-1` (Unity-era). Prefer **Ayatana** on modern Ubuntu; it is the maintained fork.
+With FUSE:
 
-Fedora / RHEL-like:
+```bash
+chmod +x gotify-desktop-linux-amd64.AppImage
+./gotify-desktop-linux-amd64.AppImage
+```
+
+The binary:
+
+```bash
+chmod +x gotify-desktop-linux-amd64
+./gotify-desktop-linux-amd64
+```
+
+Verify the download (`SHA256SUMS` in the same directory):
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Fedora and similar distributions, tray library:
 
 ```bash
 sudo dnf install libappindicator-gtk3 gnome-shell-extension-appindicator
@@ -77,122 +89,103 @@ Arch:
 sudo pacman -S libappindicator-gtk3
 ```
 
-#### Desktop environment support
+GTK 4 and WebKitGTK 6.0 must be installed there as well.
 
-Having the library installed is necessary but not always sufficient. The shell must also **host** indicators:
+#### System tray
 
-| Desktop | Tray support |
-|---------|----------------|
-| **KDE Plasma** | Built-in system tray; works out of the box with SNI |
-| **XFCE** | Panel → add “Status Tray Plugin” / “Indicator Plugin” |
-| **MATE** | Panel → “Notification Area” / “Indicator Applet Complete” |
-| **Cinnamon** | Usually works with the default panel tray |
-| **GNOME (45+)** | No classic tray by default. Install an extension such as [AppIndicator and KStatusNotifierItem Support](https://extensions.gnome.org/extension/615/appindicator-support/) (`gnome-shell-extension-appindicator` on Ubuntu/Fedora) and **enable** it |
-| **Hyprland / Sway / wlroots** | No tray unless a panel hosts SNI (e.g. Waybar `tray` module). Same “vanished window” symptom without it |
-| **WSL / headless** | Often **no** tray host at all; run under a full Linux desktop session or WSLg with a DE that provides one |
+KDE Plasma, Xfce, MATE, and Cinnamon usually show the icon on their own. GNOME 45 and later has no classic tray. Without an extension the app still runs, but after sign-in the window disappears on purpose because it moves to the tray.
 
-Ubuntu GNOME example:
+Ubuntu GNOME:
 
 ```bash
 sudo apt install libayatana-appindicator3-1 gnome-shell-extension-appindicator
 ```
 
-Then enable the extension (Extensions app, or GNOME Tweaks / `gnome-extensions enable …`), and log out/in if the icon still does not show.
+Then enable **AppIndicator and KStatusNotifierItem Support** and log out and back in if the icon is missing. It sits in the top bar, not in the Activities grid.
 
-#### Fedora / GNOME: “app vanished after login”
-
-On a successful first connect (and whenever a saved session starts), Gotify Desktop **hides the main window and keeps running in the tray**. That is intentional — not a crash.
-
-Under stock **Fedora Workstation (GNOME)** there is no classic system tray. Without an indicator host the window simply disappears and there is nowhere obvious to reopen it.
-
-What to do:
-
-1. Install runtime + extension packages (see `dnf` above).
-2. Open **Extensions** (`gnome-extensions-app`) and enable **AppIndicator and KStatusNotifierItem Support**.
-3. If the toggle stays greyed out, user extensions may be disabled globally — turn them on, then enable the extension:
+If the switch stays greyed out:
 
 ```bash
 gsettings set org.gnome.shell disable-user-extensions false
 gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com
 ```
 
-4. Restart Gotify Desktop. The tray icon appears in the **GNOME top bar** (top-right, near network/volume/clock) — not in the Activities app grid.
-5. Use the tray menu (**Open window** / **Quit**). To force a restart from a terminal:
+Hyprland, Sway, and other wlroots setups need a panel with a Status Notifier host, for example Waybar's tray module. WSL without a desktop session often has no tray at all.
+
+#### Wayland
+
+The app runs under Wayland. Size and maximised state are saved; the screen position often is not. Notifications go through `xdg-desktop-portal`. Plasma and GNOME provide one. A minimal Hyprland session needs the portal package as well. If the app starts before the session bus is ready, the tray or notifications can miss the first attempt; restarting the app afterwards is enough.
+
+### Windows
+
+The setup (`gotify-desktop-windows-amd64-setup.exe`) installs the app. `gotify-desktop-windows-amd64.exe` is portable and needs no installer. Automatic updates replace that EXE, not the setup.
+
+Windows 10 and 11 usually already include the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/). If it is missing, the window stays blank until the runtime is installed.
+
+The packages are not signed. SmartScreen may warn on the first launch.
+
+### macOS
+
+Apple Silicon (arm64) only. The DMG contains `Gotify Desktop.app` and a link to Applications. The ZIP contains `gotify-desktop.app`.
+
+Builds are unsigned and not notarized, so macOS blocks the first launch. In Finder, right-click the app, choose **Open**, then **Open** again. Or, depending on which bundle you installed:
 
 ```bash
-pkill -f gotify-desktop; gotify-desktop &
+xattr -dr com.apple.quarantine "/Applications/Gotify Desktop.app"
 ```
 
-Log out/in once if the icon still does not appear after enabling the extension.
+Automatic updates use the ZIP, not the DMG.
 
-#### Wayland (e.g. CachyOS, Fedora Workstation, Plasma Wayland)
+## Settings
 
-Gotify Desktop is a GTK4 / WebKitGTK 6 / Wails v3 app. It generally runs under Wayland, but a few behaviours differ from X11:
+Configuration and history are stored in the user directory:
 
-| Area | What to expect |
-|------|----------------|
-| **Window position** | Wayland often does not expose global coordinates to clients (`gtk_window_get_position` may always report `0,0`). **Size** and **maximised** still persist; restoring a previous screen position may be ignored or land at the compositor default. |
-| **Tray** | Same rules as above — the compositor/shell must host Status Notifier / AppIndicator. Plasma Wayland usually works out of the box; GNOME needs the AppIndicator extension; Hyprland/Sway need a panel with a tray module. |
-| **Notifications** | Desktop toasts go through `xdg-desktop-portal` and a session backend. Plasma/GNOME usually provide one; a minimal Hyprland setup may need an extra portal package or show `Notify: Fallback` / silent toasts until portals are configured. |
-| **Autostart** | XDG autostart still works, but starting before the session bus / portals are ready can delay tray or notifications once — restarting the app after login fixes that. |
-| **Clipboard / focus** | Occasional focus or clipboard quirks in the embedded UI (e.g. History → Copy) are possible; retry or refocus the window if a copy fails. |
+| System | Folder |
+|--------|--------|
+| Linux | `~/.config/gotify-desktop/` |
+| macOS | `~/Library/Application Support/gotify-desktop/` |
+| Windows | `%AppData%\gotify-desktop\` |
 
-Quick environment check:
+That folder holds `config.json` (server, token, language, autostart, window, last update check), `history.json` (the last 100 notifications), and `notify.log` (notes when notifications do not appear).
+
+## For developers
+
+### Requirements
+
+| Platform | To build |
+|----------|----------|
+| Linux | Go 1.26+, Node.js 24+, `libgtk-4-dev`, `libwebkitgtk-6.0-dev`, `gcc`, `pkg-config` |
+| Windows | Go 1.26+, Node.js 24+, WebView2 runtime |
+| macOS | Go 1.26+, Node.js 24+, Xcode Command Line Tools |
+
+Ubuntu 24.04:
 
 ```bash
-echo "$XDG_SESSION_TYPE"   # expect "wayland"
-echo "$WAYLAND_DISPLAY"
-echo "$XDG_CURRENT_DESKTOP"
+sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
-Arch / CachyOS tray library (if needed):
-
-```bash
-sudo pacman -S libappindicator-gtk3
-```
-
-#### Build vs run
-
-- **Building** Gotify Desktop needs GTK/WebKit **dev** packages (`libgtk-4-dev`, `libwebkitgtk-6.0-dev`, …).
-- **Running** a prebuilt binary on another machine needs the **runtime** stack: GTK 4, WebKitGTK 6.0, and for the tray typically `libayatana-appindicator3-1` plus a working panel indicator host.
-
-#### Quick checks
-
-```bash
-# Library present?
-ldconfig -p | grep -i appindicator
-
-# Session bus available? (required for StatusNotifierItem)
-echo "$DBUS_SESSION_BUS_ADDRESS"
-
-# On GNOME: is the AppIndicator extension enabled?
-gnome-extensions list 2>/dev/null | grep -i indicator || true
-```
-
-If the window opens but the tray icon never appears, install the Ayatana package, confirm your DE hosts indicators (especially on GNOME), then restart the app.
-
-Install the Wails v3 CLI (ensure `$HOME/go/bin` is on your `PATH`):
+Wails v3 CLI (`$HOME/go/bin` on `PATH`):
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
 ```
 
-## Develop
+Running a prebuilt binary only needs the runtime packages in [Linux](#linux). The dev packages are for building.
+
+### Develop
 
 ```bash
 cd frontend && npm install && cd ..
 wails3 dev
 ```
 
-## Build
+### Build
 
 ```bash
 wails3 build
 ```
 
-Binary: `bin/gotify-desktop` (extension / `.app` bundle varies by OS).
-
-Cross-compile examples (host toolchains / Docker may be required):
+The binary is `bin/gotify-desktop` (`.exe` on Windows, `.app` on macOS).
 
 ```bash
 wails3 build GOOS=windows GOARCH=amd64
@@ -200,38 +193,10 @@ wails3 build GOOS=darwin GOARCH=arm64
 wails3 build GOOS=linux GOARCH=amd64
 ```
 
-## CI/CD & packaging
-
-GitHub Actions (`.github/workflows/ci.yml`) runs on pushes/PRs to `main` and on version tags:
-
-1. Unit tests
-2. Native builds for **Linux**, **Windows**, and **macOS** (arm64)
-3. Installer / portable packages uploaded as artifacts (and attached to Releases on tags)
-
-| Platform | Artifacts |
-|----------|-----------|
-| Windows | NSIS setup (`*-setup.exe`) + portable `.exe` |
-| Linux | AppImage + raw binary (needs host WebKitGTK 6.0) |
-| macOS | DMG + `.app` zip (unsigned) |
-| All | `SHA256SUMS` (GNU sha256sum) attached to each GitHub Release |
-
-### Automatic updates
-
-Gotify Desktop checks `releases/latest` over HTTPS (User-Agent `gotify-desktop/<version>`). If a newer `major.minor.patch` is published, a dialog asks to install. After confirmation the matching asset and `SHA256SUMS` are downloaded, the hash is verified, and a helper process replaces the running install then relaunches.
-
-| Running as | Update package |
-|------------|----------------|
-| Linux AppImage (`APPIMAGE` set) | `gotify-desktop-linux-<arch>.AppImage` |
-| Linux binary | `gotify-desktop-linux-<arch>` |
-| Windows EXE | `gotify-desktop-windows-<arch>.exe` (not the NSIS setup) |
-| macOS `.app` | `gotify-desktop-darwin-<arch>.zip` |
-
-Development builds with version `0.0.0` skip checks. Releases without a matching asset show an error and the releases URL. There is no code signing yet; integrity is HTTPS plus the release checksum file. Manual check: **About → Check for Updates** (tray or app menu).
-
-Local helpers:
+Local packages:
 
 ```bash
-# Windows (with NSIS on PATH)
+# Windows (NSIS on PATH)
 wails3 package GOOS=windows GOARCH=amd64
 
 # Linux AppImage (after wails3 build)
@@ -241,35 +206,60 @@ wails3 package GOOS=windows GOARCH=amd64
 ./packaging/darwin/build-dmg.sh bin/gotify-desktop.app dist darwin-arm64
 ```
 
-Pushing a version tag creates a GitHub Release:
+A version tag creates the GitHub release:
 
 ```bash
 git tag v0.1.9
 git push origin v0.1.9
 ```
 
-## Configuration
+### CI and release files
 
-Settings are stored under the user config directory:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes and pull requests to `main` and on `v*` tags:
 
-- Linux: `~/.config/gotify-desktop/config.json`
-- macOS: `~/Library/Application Support/gotify-desktop/config.json`
-- Windows: `%AppData%\gotify-desktop\config.json`
+1. Unit tests
+2. Builds for Linux amd64, Windows amd64, and macOS arm64
+3. Packages as workflow artifacts, and on tags also attached to the GitHub release
 
-Fields: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` / `en`; empty = OS language), `history_mode` (`toasts` default, or `all`; unknown/empty → `toasts`), `window_width` / `window_height` (0 or missing = defaults 1100×800; clamped to min 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`, `update_checked_unix` (last automatic update check). Notification history is stored as `history.json` in the same directory.
+| Platform | Files |
+|----------|-------|
+| Windows | `gotify-desktop-windows-amd64-setup.exe`, `gotify-desktop-windows-amd64.exe` |
+| Linux | `gotify-desktop-linux-amd64.AppImage`, `gotify-desktop-linux-amd64` |
+| macOS | `gotify-desktop-darwin-arm64.dmg`, `gotify-desktop-darwin-arm64.zip` |
+| All | `SHA256SUMS` (GNU `sha256sum`, two spaces) |
 
-### Internationalization
+### Automatic updates
 
-UI strings (setup form, tray, app menu, status) live in `internal/i18n/locales/*.json`. **English is the fallback.** Bundled languages: `en`, `de`, `fr`, `es`.
+The app queries `releases/latest` over HTTPS (User-Agent `gotify-desktop/<version>`). When a newer `major.minor.patch` is published, a dialog asks to install. After confirmation the matching package and `SHA256SUMS` are downloaded, the hash is checked, and a helper process replaces the running install.
 
-Default: OS language if available, otherwise English. Change via **Language** in the tray or app menu; the choice is stored as `locale` in `config.json`.
+| Running as | Update package |
+|------------|----------------|
+| Linux AppImage (`APPIMAGE` set) | `gotify-desktop-linux-<arch>.AppImage` |
+| Linux binary | `gotify-desktop-linux-<arch>` |
+| Windows EXE | `gotify-desktop-windows-<arch>.exe` (not the NSIS setup) |
+| macOS `.app` | `gotify-desktop-darwin-<arch>.zip` |
 
-Notification diagnostics are appended to `notify.log` in the same directory (e.g. `%AppData%\gotify-desktop\notify.log` on Windows).
+Builds with version `0.0.0` skip the check. If the matching package is missing, the app shows an error and the releases URL. Integrity comes from HTTPS and `SHA256SUMS`, not from a signature. Manual check: **About → Check for Updates**.
 
-To verify only the Gotify WebSocket stream (from any machine with Go):
+### Configuration
+
+Fields in `config.json`: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` or `en`; empty = OS language), `history_mode` (`toasts` or `all`; empty or unknown becomes `toasts`), `window_width` / `window_height` (0 or missing = 1100×800, minimum 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`, `update_checked_unix`.
+
+UI strings live in `internal/i18n/locales/*.json`. English is the fallback. Bundled languages: `en`, `de`, `fr`, `es`.
+
+Check only the WebSocket stream:
 
 ```bash
 GOTIFY_URL=https://gotify.example.com GOTIFY_TOKEN=... go run ./cmd/streamcheck
+```
+
+Quick check that the Linux tray host is reachable:
+
+```bash
+ldconfig -p | grep -i appindicator
+echo "$DBUS_SESSION_BUS_ADDRESS"
+echo "$XDG_SESSION_TYPE"
+gnome-extensions list 2>/dev/null | grep -i indicator || true
 ```
 
 ## License
