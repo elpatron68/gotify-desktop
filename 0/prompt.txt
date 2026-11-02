@@ -1,0 +1,5 @@
+können wir den toasts noch das icon hinzufügen (für alle OS)?
+
+---
+
+commit, dann pr
