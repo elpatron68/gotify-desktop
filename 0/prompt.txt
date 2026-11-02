@@ -1,0 +1,44 @@
+Schätze den Aufwand ab, die App Multi-Tenant fähig zu machen (für mehrere Gotify Server Instanzen)
+
+---
+
+1. mehrere Gotify-Server gleichzeitig 
+2. Gemischte Timeline aller Server (mit Server-Label)
+
+---
+
+Genügt der Plan für eine Implementierung oder sollten wir das vorher konkreter ausarbeiten?
+
+---
+
+ja, erstelle eine  implementierungsreife Spezifikation
+
+---
+
+Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.
+
+To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.
+
+---
+
+wir sind unter wsl, wie erstelle ich schnell einen build für windows, den ich testen kann?
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:119-128 gtk könnte unter wsl schwierig werden.
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:176-189
+
+---
+
+Tests soweit erfolgreich. Ist @README.md auf dem aktuellen Stand? Screenshots werde ich gleich noch nachliefern.
+
+---
+
+Updated Screenshots - @docs/screenshots/recent-notifications.png can stay unchanged
+
+---
+
+commit in neuen branch
