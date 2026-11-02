@@ -23,6 +23,20 @@ import * as push$0 from "./internal/push/models.js";
 import * as $models from "./models.js";
 
 /**
+ * AddServer authenticates, upserts by URL+username, starts the stream, and may set Active.
+ * @param {string} serverURL
+ * @param {string} username
+ * @param {string} password
+ * @param {string} label
+ * @returns {$CancellablePromise<$models.ServerInfo>}
+ */
+export function AddServer(serverURL, username, password, label) {
+    return $Call.ByID(755592719, serverURL, username, password, label).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * CheckForUpdates runs a manual update check (menu / tray).
  * @returns {$CancellablePromise<void>}
  */
@@ -39,7 +53,7 @@ export function ClearNotificationHistory() {
 }
 
 /**
- * Connect authenticates with username/password, creates a client token, and starts the stream.
+ * Connect is a compatibility alias for AddServer with an empty label.
  * @param {string} serverURL
  * @param {string} username
  * @param {string} password
@@ -60,7 +74,7 @@ export function FormatHistoryEntryMarkdown(id) {
 }
 
 /**
- * GetClientToken returns the Gotify client token used for stream + embedded UI auth.
+ * GetClientToken returns the active Gotify client token for stream + embedded UI auth.
  * @returns {$CancellablePromise<string>}
  */
 export function GetClientToken() {
@@ -97,12 +111,12 @@ export function GetLocale() {
  */
 export function GetNotificationHistory() {
     return $Call.ByID(2722288168).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
 /**
- * GetServerURL returns the configured Gotify base URL.
+ * GetServerURL returns the active Gotify base URL.
  * @returns {$CancellablePromise<string>}
  */
 export function GetServerURL() {
@@ -115,7 +129,7 @@ export function GetServerURL() {
  */
 export function GetStatus() {
     return $Call.ByID(1043986649).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -152,12 +166,33 @@ export function LeaveSendMessage() {
 }
 
 /**
- * ListApplications returns Gotify applications for the configured account (no tokens).
+ * ListApplications returns Gotify applications for the active account (no tokens).
  * @returns {$CancellablePromise<push$0.Application[]>}
  */
 export function ListApplications() {
     return $Call.ByID(2948085446).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
+    }));
+}
+
+/**
+ * ListApplicationsForServer lists apps on the given server.
+ * @param {string} serverID
+ * @returns {$CancellablePromise<push$0.Application[]>}
+ */
+export function ListApplicationsForServer(serverID) {
+    return $Call.ByID(2479919562, serverID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
+ * ListServers returns all configured servers with runtime status.
+ * @returns {$CancellablePromise<$models.ServerInfo[]>}
+ */
+export function ListServers() {
+    return $Call.ByID(3825619783).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
     }));
 }
 
@@ -218,6 +253,25 @@ export function Quit() {
 }
 
 /**
+ * RemoveServer stops the session and removes the account locally.
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveServer(id) {
+    return $Call.ByID(1832104242, id);
+}
+
+/**
+ * RenameServer updates the display label.
+ * @param {string} id
+ * @param {string} label
+ * @returns {$CancellablePromise<void>}
+ */
+export function RenameServer(id, label) {
+    return $Call.ByID(3176933048, id, label);
+}
+
+/**
  * SaveWindowState persists the current window geometry. While maximised, the
  * last known normal bounds are kept and only the maximised flag is updated.
  * @returns {$CancellablePromise<void>}
@@ -227,7 +281,7 @@ export function SaveWindowState() {
 }
 
 /**
- * SendApplicationMessage sends a push message to the given Gotify application.
+ * SendApplicationMessage sends a push message via the active Gotify server.
  * @param {number} appID
  * @param {string} title
  * @param {string} message
@@ -236,6 +290,28 @@ export function SaveWindowState() {
  */
 export function SendApplicationMessage(appID, title, message, priority) {
     return $Call.ByID(1263902078, appID, title, message, priority);
+}
+
+/**
+ * SendApplicationMessageToServer sends a message via the given server.
+ * @param {string} serverID
+ * @param {number} appID
+ * @param {string} title
+ * @param {string} message
+ * @param {number} priority
+ * @returns {$CancellablePromise<void>}
+ */
+export function SendApplicationMessageToServer(serverID, appID, title, message, priority) {
+    return $Call.ByID(2734478432, serverID, appID, title, message, priority);
+}
+
+/**
+ * SetActiveServer switches the embedded UI / default send target.
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetActiveServer(id) {
+    return $Call.ByID(2312666946, id);
 }
 
 /**
@@ -254,6 +330,16 @@ export function SetHistoryMode(mode) {
  */
 export function SetLocale(code) {
     return $Call.ByID(2991417501, code);
+}
+
+/**
+ * SetServerEnabled enables or disables a server stream.
+ * @param {string} id
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetServerEnabled(id, enabled) {
+    return $Call.ByID(2165157097, id, enabled);
 }
 
 /**
@@ -281,8 +367,10 @@ export function ToggleAutostart() {
 }
 
 // Private type creation functions
-const $$createType0 = history$0.Entry.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $models.AppStatus.createFrom;
-const $$createType3 = push$0.Application.createFrom;
-const $$createType4 = $Create.Array($$createType3);
+const $$createType0 = $models.ServerInfo.createFrom;
+const $$createType1 = history$0.Entry.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = $models.AppStatus.createFrom;
+const $$createType4 = push$0.Application.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $Create.Array($$createType0);

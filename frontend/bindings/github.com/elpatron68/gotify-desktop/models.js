@@ -24,13 +24,22 @@ export class AppStatus {
         }
         if (!("connected" in $$source)) {
             /**
+             * any stream up
              * @member
              * @type {boolean}
              */
             this["connected"] = false;
         }
+        if (!("activeServerId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["activeServerId"] = "";
+        }
         if (!("serverUrl" in $$source)) {
             /**
+             * active
              * @member
              * @type {string}
              */
@@ -38,10 +47,18 @@ export class AppStatus {
         }
         if (!("username" in $$source)) {
             /**
+             * active
              * @member
              * @type {string}
              */
             this["username"] = "";
+        }
+        if (!("servers" in $$source)) {
+            /**
+             * @member
+             * @type {ServerInfo[]}
+             */
+            this["servers"] = [];
         }
         if (!("view" in $$source)) {
             /**
@@ -60,6 +77,7 @@ export class AppStatus {
         }
         if (!("minPriority" in $$source)) {
             /**
+             * active
              * @member
              * @type {number}
              */
@@ -81,10 +99,25 @@ export class AppStatus {
         }
         if (!("lastMessageId" in $$source)) {
             /**
+             * active
              * @member
              * @type {number}
              */
             this["lastMessageId"] = 0;
+        }
+        if (!("connectedCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["connectedCount"] = 0;
+        }
+        if (!("enabledCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["enabledCount"] = 0;
         }
 
         Object.assign(this, $$source);
@@ -96,7 +129,95 @@ export class AppStatus {
      * @returns {AppStatus}
      */
     static createFrom($$source = {}) {
+        const $$createField5_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("servers" in $$parsedSource) {
+            $$parsedSource["servers"] = $$createField5_0($$parsedSource["servers"]);
+        }
         return new AppStatus(/** @type {Partial<AppStatus>} */($$parsedSource));
     }
 }
+
+/**
+ * ServerInfo is exposed to the frontend for the server list.
+ */
+export class ServerInfo {
+    /**
+     * Creates a new ServerInfo instance.
+     * @param {Partial<ServerInfo>} [$$source = {}] - The source object to create the ServerInfo.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+        if (!("serverUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["serverUrl"] = "";
+        }
+        if (!("username" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["username"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("connected" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["connected"] = false;
+        }
+        if (!("error" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["error"] = "";
+        }
+        if (!("active" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["active"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ServerInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ServerInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ServerInfo(/** @type {Partial<ServerInfo>} */($$parsedSource));
+    }
+}
+
+// Private type creation functions
+const $$createType0 = ServerInfo.createFrom;
+const $$createType1 = $Create.Array($$createType0);

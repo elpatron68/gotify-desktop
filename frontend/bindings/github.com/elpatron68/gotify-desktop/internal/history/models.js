@@ -47,6 +47,20 @@ export class Entry {
              */
             this["app_id"] = 0;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["server_id"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["server_label"] = undefined;
+        }
         if (!("received_at" in $$source)) {
             /**
              * @member
@@ -71,10 +85,10 @@ export class Entry {
      * @returns {Entry}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $Create.DateFromTime;
+        const $$createField7_0 = $Create.DateFromTime;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("received_at" in $$parsedSource) {
-            $$parsedSource["received_at"] = $$createField5_0($$parsedSource["received_at"]);
+            $$parsedSource["received_at"] = $$createField7_0($$parsedSource["received_at"]);
         }
         return new Entry(/** @type {Partial<Entry>} */($$parsedSource));
     }

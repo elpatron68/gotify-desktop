@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/elpatron68/gotify-desktop/internal/i18n"
 	"github.com/elpatron68/gotify-desktop/internal/notify"
 	"github.com/elpatron68/gotify-desktop/internal/push"
+	"github.com/elpatron68/gotify-desktop/internal/session"
 	"github.com/elpatron68/gotify-desktop/internal/stream"
 	"github.com/elpatron68/gotify-desktop/internal/tray"
 	"github.com/elpatron68/gotify-desktop/internal/version"
@@ -26,16 +26,20 @@ import (
 
 // AppStatus is exposed to the frontend.
 type AppStatus struct {
-	Configured    bool   `json:"configured"`
-	Connected     bool   `json:"connected"`
-	ServerURL     string `json:"serverUrl"`
-	Username      string `json:"username"`
-	View          string `json:"view"` // "setup" | "gotify" | "history" | "send"
-	Error         string `json:"error"`
-	MinPriority   int    `json:"minPriority"`
-	NotifyReady   bool   `json:"notifyReady"`
-	NotifyError   string `json:"notifyError"`
-	LastMessageID uint   `json:"lastMessageId"`
+	Configured     bool         `json:"configured"`
+	Connected      bool         `json:"connected"` // any stream up
+	ActiveServerID string       `json:"activeServerId"`
+	ServerURL      string       `json:"serverUrl"` // active
+	Username       string       `json:"username"`  // active
+	Servers        []ServerInfo `json:"servers"`
+	View           string       `json:"view"` // "setup" | "gotify" | "history" | "send"
+	Error          string       `json:"error"`
+	MinPriority    int          `json:"minPriority"` // active
+	NotifyReady    bool         `json:"notifyReady"`
+	NotifyError    string       `json:"notifyError"`
+	LastMessageID  uint         `json:"lastMessageId"` // active
+	ConnectedCount int          `json:"connectedCount"`
+	EnabledCount   int          `json:"enabledCount"`
 }
 
 // App is the Wails-bound application core.
@@ -44,17 +48,16 @@ type App struct {
 	window    *application.WebviewWindow
 	notifySvc *notifications.NotificationService
 
-	mu        sync.Mutex
-	cfg       config.Config
-	view      string
-	connected bool
-	lastErr   string
-	quitting  bool
-	ready     bool
+	mu       sync.Mutex
+	cfg      config.Config
+	view     string
+	lastErr  string
+	quitting bool
+	ready    bool
 
 	auth      *auth.Client
 	push      *push.Client
-	stream    *stream.Client
+	sessions  *session.Manager
 	notify    *notify.Notifier
 	tray      *tray.Controller
 	proxy     *gotifyproxy.Proxy
@@ -73,15 +76,19 @@ func NewApp(trayIcon []byte) *App {
 	if err != nil {
 		as = nil
 	}
-	return &App{
+	a := &App{
 		auth:      auth.New(),
 		push:      push.New(),
+		sessions:  session.New(),
 		notify:    &notify.Notifier{},
 		proxy:     &gotifyproxy.Proxy{},
 		autostart: as,
 		view:      "setup",
 		trayIcon:  trayIcon,
 	}
+	a.sessions.OnMessage = a.handleMessage
+	a.sessions.OnStatus = a.onSessionStatus
+	return a
 }
 
 func (a *App) bindApp(app *application.App) {
@@ -137,6 +144,26 @@ func (a *App) buildApplicationMenu() *application.Menu {
 
 	root.Add(i18n.T("menu.show_window")).OnClick(func(_ *application.Context) { a.ShowWindow() })
 	root.Add(i18n.T("menu.settings")).OnClick(func(_ *application.Context) { a.OpenSettings() })
+
+	serversMenu := root.AddSubmenu(i18n.T("tray.servers"))
+	infos := a.buildServerInfos()
+	if len(infos) == 0 {
+		empty := serversMenu.Add(i18n.T("tray.servers_empty"))
+		empty.SetEnabled(false)
+	} else {
+		for _, srv := range infos {
+			id := srv.ID
+			label := srv.Label
+			if label == "" {
+				label = srv.ServerURL
+			}
+			item := serversMenu.AddRadio(label, srv.Active)
+			item.OnClick(func(_ *application.Context) {
+				_ = a.SetActiveServer(id)
+			})
+		}
+	}
+
 	root.Add(i18n.T("menu.recent_notifications")).OnClick(func(_ *application.Context) { a.OpenNotificationHistory() })
 	root.Add(i18n.T("menu.send_message")).OnClick(func(_ *application.Context) { a.OpenSendMessage() })
 	root.Add(i18n.T("menu.test_notification")).OnClick(func(_ *application.Context) { _ = a.TestNotification() })
@@ -193,6 +220,9 @@ func trayLabels() tray.Labels {
 		OpenTooltip:              i18n.T("tray.open_tooltip"),
 		Settings:                 i18n.T("tray.settings"),
 		SettingsTooltip:          i18n.T("tray.settings_tooltip"),
+		Servers:                  i18n.T("tray.servers"),
+		ServersTooltip:           i18n.T("tray.servers_tooltip"),
+		ServersEmpty:             i18n.T("tray.servers_empty"),
 		History:                  i18n.T("tray.history"),
 		HistoryTooltip:           i18n.T("tray.history_tooltip"),
 		Send:                     i18n.T("tray.send"),
@@ -241,8 +271,12 @@ func (a *App) startup() {
 		a.mu.Lock()
 		a.cfg = cfg
 		a.mu.Unlock()
-		applog.Printf("config loaded configured=%v server=%q user=%q token=%s",
-			cfg.Configured(), cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
+		activeURL, activeUser, activeTok := "", "", ""
+		if acc, ok := cfg.Active(); ok {
+			activeURL, activeUser, activeTok = acc.ServerURL, acc.Username, acc.ClientToken
+		}
+		applog.Printf("config loaded configured=%v servers=%d active=%q user=%q token=%s",
+			cfg.Configured(), len(cfg.Servers), activeURL, activeUser, applog.TokenFingerprint(activeTok))
 	}
 	a.mu.Lock()
 	a.cfg.HistoryMode = config.NormalizeHistoryMode(a.cfg.HistoryMode)
@@ -258,9 +292,8 @@ func (a *App) startup() {
 	lang := i18n.Init(a.cfg.Locale)
 	applog.Printf("locale=%s (config=%q)", lang, a.cfg.Locale)
 	a.rebuildApplicationMenu()
-	_ = a.proxy.Update(a.cfg.ServerURL, a.cfg.ClientToken)
-	if _, err := a.proxy.StartWSProxy(); err != nil {
-		applog.Printf("ws proxy start failed: %v", err)
+	if acc, ok := a.cfg.Active(); ok {
+		a.applyActiveProxy(acc)
 	}
 
 	autostartOn := a.syncAutostartOnStartup()
@@ -269,6 +302,7 @@ func (a *App) startup() {
 		OnSettings:          a.OpenSettings,
 		OnHistory:           a.OpenNotificationHistory,
 		OnSend:              a.OpenSendMessage,
+		OnSelectServer:      func(id string) { _ = a.SetActiveServer(id) },
 		OnAutostart:         a.setAutostartEnabled,
 		OnLanguage:          a.SetLocale,
 		OnAboutLicense:      a.OpenLicense,
@@ -283,12 +317,15 @@ func (a *App) startup() {
 		Labels:           trayLabels(),
 	})
 	a.tray.Start()
+	a.refreshTrayServers()
 
 	if a.cfg.Configured() {
 		a.mu.Lock()
 		a.view = "gotify"
+		servers := append([]config.ServerAccount(nil), a.cfg.Servers...)
 		a.mu.Unlock()
-		a.startStream()
+		a.sessions.StartAll(servers)
+		a.updateTrayConnectionStatus()
 		applog.Printf("startup: opening gotify view uiPath=%s", gotifyproxy.UIPrefix+"/")
 	} else {
 		a.tray.SetStatus(i18n.T("tray.status_not_configured"))
@@ -308,14 +345,11 @@ func (a *App) onRuntimeReady() {
 	a.mu.Lock()
 	configured := a.cfg.Configured()
 	view := a.view
-	token := a.cfg.ClientToken
+	acc, hasActive := a.cfg.Active()
 	a.mu.Unlock()
-	if configured && view == "gotify" {
+	if configured && view == "gotify" && hasActive {
 		applog.Printf("runtimeReady: restoring gotify view (hiding to tray)")
-		a.emit("show-gotify", map[string]string{
-			"token":  token,
-			"uiPath": gotifyproxy.UIPrefix + "/",
-		})
+		a.emit("show-gotify", a.gotifyPayload(acc))
 		if a.window != nil {
 			a.window.Hide()
 		}
@@ -325,7 +359,9 @@ func (a *App) onRuntimeReady() {
 }
 
 func (a *App) shutdown() {
-	a.stopStream()
+	if a.sessions != nil {
+		a.sessions.StopAll()
+	}
 	if a.tray != nil {
 		a.tray.Stop()
 	}
@@ -386,7 +422,13 @@ func (a *App) SaveWindowState() {
 
 	a.mu.Lock()
 	cfg := config.MergeWindowGeometry(a.cfg, w, h, x, y, maxed)
-	if cfg == a.cfg {
+	unchanged := cfg.WindowWidth == a.cfg.WindowWidth &&
+		cfg.WindowHeight == a.cfg.WindowHeight &&
+		cfg.WindowX == a.cfg.WindowX &&
+		cfg.WindowY == a.cfg.WindowY &&
+		cfg.WindowPosSet == a.cfg.WindowPosSet &&
+		cfg.WindowMaximised == a.cfg.WindowMaximised
+	if unchanged {
 		a.mu.Unlock()
 		return
 	}
@@ -399,34 +441,52 @@ func (a *App) SaveWindowState() {
 
 // GetStatus returns the current app status for the UI.
 func (a *App) GetStatus() AppStatus {
+	servers := a.buildServerInfos()
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return AppStatus{
-		Configured:    a.cfg.Configured(),
-		Connected:     a.connected,
-		ServerURL:     a.cfg.ServerURL,
-		Username:      a.cfg.Username,
-		View:          a.view,
-		Error:         a.lastErr,
-		MinPriority:   a.cfg.MinPriority,
-		NotifyReady:   a.notify.Ready(),
-		NotifyError:   a.notify.LastError(),
-		LastMessageID: a.cfg.LastMessageID,
+	st := AppStatus{
+		Configured:     a.cfg.Configured(),
+		ActiveServerID: a.cfg.ActiveServerID,
+		Servers:        servers,
+		View:           a.view,
+		Error:          a.lastErr,
+		NotifyReady:    a.notify.Ready(),
+		NotifyError:    a.notify.LastError(),
 	}
+	if acc, ok := a.cfg.Active(); ok {
+		st.ServerURL = acc.ServerURL
+		st.Username = acc.Username
+		st.MinPriority = acc.MinPriority
+		st.LastMessageID = acc.LastMessageID
+	}
+	if a.sessions != nil {
+		st.Connected = a.sessions.AnyConnected()
+		st.ConnectedCount, st.EnabledCount = a.sessions.Counts()
+		if st.Error == "" {
+			st.Error = a.sessions.LastError()
+		}
+	}
+	return st
 }
 
-// GetServerURL returns the configured Gotify base URL.
+// GetServerURL returns the active Gotify base URL.
 func (a *App) GetServerURL() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.cfg.ServerURL
+	if acc, ok := a.cfg.Active(); ok {
+		return acc.ServerURL
+	}
+	return ""
 }
 
-// GetClientToken returns the Gotify client token used for stream + embedded UI auth.
+// GetClientToken returns the active Gotify client token for stream + embedded UI auth.
 func (a *App) GetClientToken() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.cfg.ClientToken
+	if acc, ok := a.cfg.Active(); ok {
+		return acc.ClientToken
+	}
+	return ""
 }
 
 // GetUIPath returns the same-origin reverse-proxy path for the embedded Gotify UI.
@@ -439,50 +499,6 @@ func (a *App) IsConfigured() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cfg.Configured()
-}
-
-// Connect authenticates with username/password, creates a client token, and starts the stream.
-func (a *App) Connect(serverURL, username, password string) error {
-	normalized, err := config.NormalizeServerURL(serverURL)
-	if err != nil {
-		return err
-	}
-	token, err := a.auth.VerifyAndCreateClient(normalized, username, password)
-	if err != nil {
-		return err
-	}
-
-	a.mu.Lock()
-	a.cfg.ServerURL = normalized
-	a.cfg.Username = username
-	a.cfg.ClientToken = token
-	a.view = "gotify"
-	a.lastErr = ""
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("save config: %w", err)
-	}
-	applog.Printf("connect saved server=%q user=%q token=%s", cfg.ServerURL, cfg.Username, applog.TokenFingerprint(cfg.ClientToken))
-	_ = a.proxy.Update(cfg.ServerURL, cfg.ClientToken)
-	if _, err := a.proxy.StartWSProxy(); err != nil {
-		applog.Printf("ws proxy start failed: %v", err)
-	}
-
-	a.stopStream()
-	a.startStream()
-	a.emitStatus()
-	a.emit("show-gotify", map[string]string{
-		"serverUrl": cfg.ServerURL,
-		"token":     cfg.ClientToken,
-		"uiPath":    gotifyproxy.UIPrefix + "/",
-	})
-	if a.window != nil {
-		a.window.Hide()
-	}
-	applog.Printf("connect: window hidden to tray")
-	return nil
 }
 
 // OpenSettings switches the UI back to the setup view.
@@ -531,110 +547,78 @@ func (a *App) Quit() {
 	a.mu.Lock()
 	a.quitting = true
 	a.mu.Unlock()
-	a.stopStream()
+	if a.sessions != nil {
+		a.sessions.StopAll()
+	}
 	if a.wailsApp != nil {
 		a.wailsApp.Quit()
 	}
 }
 
-func (a *App) startStream() {
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-	if !cfg.Configured() {
-		return
-	}
-	wsURL, err := config.StreamURL(cfg.ServerURL, cfg.ClientToken)
-	if err != nil {
-		a.setError(err.Error())
-		a.emitStatus()
-		return
-	}
-
-	client := &stream.Client{
-		URL: wsURL,
-		OnMessage: func(msg stream.Message) {
-			a.handleMessage(msg)
-		},
-		OnStatus: func(connected bool, errMsg string) {
-			a.mu.Lock()
-			a.connected = connected
-			if errMsg != "" {
-				a.lastErr = errMsg
-			} else if connected {
-				a.lastErr = ""
-			}
-			a.mu.Unlock()
-			if a.tray != nil {
-				if connected {
-					a.tray.SetStatus(i18n.T("tray.status_connected"))
-				} else if errMsg != "" {
-					a.tray.SetStatus(i18n.T("tray.status_error"))
-				} else {
-					a.tray.SetStatus(i18n.T("tray.status_disconnected"))
-				}
-			}
-			a.emitStatus()
-		},
-	}
-	a.mu.Lock()
-	a.stream = client
-	a.mu.Unlock()
-	client.Start()
+func (a *App) onSessionStatus() {
+	a.updateTrayConnectionStatus()
+	a.emitStatus()
 }
 
-func (a *App) stopStream() {
+func (a *App) handleMessage(serverID string, _ config.ServerAccount, msg stream.Message) {
 	a.mu.Lock()
-	s := a.stream
-	a.stream = nil
-	a.connected = false
-	a.mu.Unlock()
-	if s != nil {
-		s.Stop()
+	accPtr := a.cfg.FindByID(serverID)
+	if accPtr == nil {
+		a.mu.Unlock()
+		return
 	}
-}
-
-func (a *App) handleMessage(msg stream.Message) {
-	a.mu.Lock()
-	minP := a.cfg.MinPriority
-	lastID := a.cfg.LastMessageID
+	acc := *accPtr
+	multi := len(a.cfg.Servers) > 1
 	mode := config.NormalizeHistoryMode(a.cfg.HistoryMode)
 	a.mu.Unlock()
 
-	if msg.ID != 0 && lastID != 0 && msg.ID <= lastID {
+	if msg.ID != 0 && acc.LastMessageID != 0 && msg.ID <= acc.LastMessageID {
 		return
 	}
 
-	eligible := config.ShouldNotify(minP, msg.Priority)
+	eligible := config.ShouldNotify(acc.MinPriority, msg.Priority)
 
-	id := strconv.FormatUint(uint64(msg.ID), 10)
-	if id == "0" {
-		id = fmt.Sprintf("msg-%d", msg.AppID)
-	}
+	id := history.EntryID(serverID, msg.ID, msg.AppID)
 	entry := history.Entry{
-		ID:         id,
-		Title:      msg.Title,
-		Body:       msg.Message,
-		Priority:   msg.Priority,
-		AppID:      msg.AppID,
-		ReceivedAt: time.Now(),
-		Notified:   eligible,
+		ID:          id,
+		Title:       msg.Title,
+		Body:        msg.Message,
+		Priority:    msg.Priority,
+		AppID:       msg.AppID,
+		ServerID:    serverID,
+		ServerLabel: acc.Label,
+		ReceivedAt:  time.Now(),
+		Notified:    eligible,
+	}
+
+	toastTitle := msg.Title
+	if multi {
+		label := acc.Label
+		if label == "" {
+			label = config.HostnameLabel(acc.ServerURL)
+		}
+		toastTitle = "[" + label + "] " + msg.Title
 	}
 
 	if !eligible {
 		if mode == config.HistoryModeAll {
 			a.recordHistory(entry)
 		}
+		if msg.ID > 0 {
+			a.persistLastMessageID(serverID, msg.ID)
+		}
 		return
 	}
 
-	applog.Printf("message id=%s title=%q priority=%d → notify", id, msg.Title, msg.Priority)
+	applog.Printf("message server=%s id=%s title=%q priority=%d → notify", serverID, id, msg.Title, msg.Priority)
 	a.emit("gotify-message", map[string]string{
-		"id":    id,
-		"title": msg.Title,
-		"body":  msg.Message,
+		"id":          id,
+		"title":       msg.Title,
+		"body":        msg.Message,
+		"serverId":    serverID,
+		"serverLabel": acc.Label,
 	})
-	if err := a.notify.Show(id, msg.Title, msg.Message); err != nil {
+	if err := a.notify.Show(id, toastTitle, msg.Message); err != nil {
 		a.setError("notification: " + err.Error())
 		if a.tray != nil {
 			a.tray.SetStatus(i18n.T("tray.status_notify_error"))
@@ -642,19 +626,26 @@ func (a *App) handleMessage(msg stream.Message) {
 		a.emitStatus()
 	} else if a.tray != nil {
 		a.tray.SetStatus(i18n.Tf("tray.msg_prefix", map[string]string{
-			"Title": truncateRunes(msg.Title, 40),
+			"Title": truncateRunes(toastTitle, 40),
 		}))
 	}
 	a.recordHistory(entry)
 
 	if msg.ID > 0 {
-		a.mu.Lock()
-		a.cfg.LastMessageID = msg.ID
-		cfg := a.cfg
+		a.persistLastMessageID(serverID, msg.ID)
+	}
+}
+
+func (a *App) persistLastMessageID(serverID string, msgID uint) {
+	a.mu.Lock()
+	if !a.cfg.SetLastMessageID(serverID, msgID) {
 		a.mu.Unlock()
-		if err := config.Save(cfg); err != nil {
-			applog.Printf("last message id save config: %v", err)
-		}
+		return
+	}
+	cfg := a.cfg
+	a.mu.Unlock()
+	if err := config.Save(cfg); err != nil {
+		applog.Printf("last message id save config: %v", err)
 	}
 }
 
@@ -757,40 +748,26 @@ func (a *App) LeaveNotificationHistory() {
 	a.leaveOverlayView()
 }
 
-// ListApplications returns Gotify applications for the configured account (no tokens).
+// ListApplications returns Gotify applications for the active account (no tokens).
 func (a *App) ListApplications() ([]push.Application, error) {
 	a.mu.Lock()
-	serverURL := a.cfg.ServerURL
-	token := a.cfg.ClientToken
-	configured := a.cfg.Configured()
+	acc, ok := a.cfg.Active()
 	a.mu.Unlock()
-	if !configured {
+	if !ok || strings.TrimSpace(acc.ClientToken) == "" {
 		return nil, fmt.Errorf("not configured")
 	}
-	return a.push.ListApplications(serverURL, token)
+	return a.push.ListApplications(acc.ServerURL, acc.ClientToken)
 }
 
-// SendApplicationMessage sends a push message to the given Gotify application.
+// SendApplicationMessage sends a push message via the active Gotify server.
 func (a *App) SendApplicationMessage(appID uint, title, message string, priority int) error {
 	a.mu.Lock()
-	serverURL := a.cfg.ServerURL
-	clientToken := a.cfg.ClientToken
-	configured := a.cfg.Configured()
+	acc, ok := a.cfg.Active()
 	a.mu.Unlock()
-	if !configured {
+	if !ok {
 		return fmt.Errorf("not configured")
 	}
-	if appID == 0 {
-		return fmt.Errorf("application is required")
-	}
-	if priority < 0 {
-		priority = 0
-	}
-	if priority > 10 {
-		priority = 10
-	}
-	applog.Printf("send message app=%d", appID)
-	return a.push.Send(serverURL, clientToken, appID, title, message, priority)
+	return a.SendApplicationMessageToServer(acc.ID, appID, title, message, priority)
 }
 
 // OpenSendMessage shows the window with the send-message view.
@@ -821,10 +798,14 @@ func (a *App) leaveOverlayView() {
 	view := a.view
 	a.mu.Unlock()
 	if view == "gotify" {
-		a.emit("show-gotify", map[string]string{
-			"token":  a.GetClientToken(),
-			"uiPath": a.GetUIPath(),
-		})
+		a.mu.Lock()
+		acc, ok := a.cfg.Active()
+		a.mu.Unlock()
+		if ok {
+			a.emit("show-gotify", a.gotifyPayload(acc))
+		} else {
+			a.emit("show-setup", nil)
+		}
 	} else {
 		a.emit("show-setup", nil)
 	}

@@ -3,6 +3,7 @@ package history
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,13 +16,15 @@ import (
 const MaxEntries = 100
 
 type Entry struct {
-	ID         string    `json:"id"`
-	Title      string    `json:"title"`
-	Body       string    `json:"body"`
-	Priority   int       `json:"priority"`
-	AppID      uint      `json:"app_id"`
-	ReceivedAt time.Time `json:"received_at"`
-	Notified   bool      `json:"notified"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	Priority    int       `json:"priority"`
+	AppID       uint      `json:"app_id"`
+	ServerID    string    `json:"server_id,omitempty"`
+	ServerLabel string    `json:"server_label,omitempty"`
+	ReceivedAt  time.Time `json:"received_at"`
+	Notified    bool      `json:"notified"`
 }
 
 type fileShape struct {
@@ -125,15 +128,27 @@ func (s *Store) List(toastsOnly bool) []Entry {
 	return out
 }
 
+// EntryID builds a stable history id scoped to a server.
+func EntryID(serverID string, msgID uint, appID uint) string {
+	if msgID != 0 {
+		return fmt.Sprintf("%s:%d", serverID, msgID)
+	}
+	return fmt.Sprintf("%s:msg-%d-%d", serverID, appID, time.Now().UnixNano())
+}
+
 func FormatMarkdown(e Entry, loc *time.Location) string {
 	if loc == nil {
 		loc = time.Local
 	}
 	ts := e.ReceivedAt.In(loc).Format("02.01.2006 15:04")
+	meta := ts
+	if label := strings.TrimSpace(e.ServerLabel); label != "" {
+		meta = label + " · " + ts
+	}
 	body := e.Body
 	title := strings.TrimSpace(e.Title)
 	if title == "" {
-		return body + "\n\n_" + ts + "_"
+		return body + "\n\n_" + meta + "_"
 	}
-	return "**" + title + "**\n" + body + "\n\n_" + ts + "_"
+	return "**" + title + "**\n" + body + "\n\n_" + meta + "_"
 }

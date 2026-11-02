@@ -8,5 +8,6 @@ export {
 };
 
 export {
-    AppStatus
+    AppStatus,
+    ServerInfo
 } from "./models.js";

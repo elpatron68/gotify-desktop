@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -129,4 +130,41 @@ func TestFormatMarkdown(t *testing.T) {
 	if got2 != want2 {
 		t.Fatalf("got %q want %q", got2, want2)
 	}
+	got3 := FormatMarkdown(Entry{
+		Title: "Alert", Body: "Disk full", ServerLabel: "home", ReceivedAt: ts,
+	}, loc)
+	want3 := "**Alert**\nDisk full\n\n_home · 31.10.2026 10:48_"
+	if got3 != want3 {
+		t.Fatalf("got %q want %q", got3, want3)
+	}
 }
+
+func TestEntryID(t *testing.T) {
+	got := EntryID("srv-1", 42, 7)
+	if got != "srv-1:42" {
+		t.Fatalf("%q", got)
+	}
+	got2 := EntryID("srv-1", 0, 7)
+	if !strings.HasPrefix(got2, "srv-1:msg-7-") {
+		t.Fatalf("%q", got2)
+	}
+}
+
+func TestSaveLoadPreservesServerFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	s := New(path)
+	ts := time.Date(2026, 10, 31, 10, 48, 0, 0, time.UTC)
+	_ = s.Append(Entry{
+		ID: "a:1", Title: "Hi", Body: "Body", ServerID: "a", ServerLabel: "home",
+		ReceivedAt: ts, Notified: true,
+	})
+	s2 := New(path)
+	if err := s2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	got := s2.List(false)
+	if len(got) != 1 || got[0].ServerID != "a" || got[0].ServerLabel != "home" {
+		t.Fatalf("%+v", got)
+	}
+}
+

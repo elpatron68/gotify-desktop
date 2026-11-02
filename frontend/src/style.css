@@ -47,12 +47,118 @@ body,
 }
 
 .setup-card {
-  width: min(420px, 100%);
+  width: min(520px, 100%);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.75rem;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.server-list-section {
+  margin: 0 0 1.25rem;
+}
+
+.server-list-heading {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.server-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.server-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.server-item.is-active {
+  border-color: var(--accent);
+}
+
+.server-item-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.server-item-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.server-item-url {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.server-status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+
+.server-status-dot.is-connected {
+  background: var(--accent);
+}
+
+.server-status-dot.is-error {
+  background: var(--danger);
+}
+
+.server-active-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+
+.server-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.server-item-actions button {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.server-item-actions .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.server-item-actions .btn-danger {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
 }
 
 h1 {
@@ -245,9 +351,25 @@ button:disabled {
   min-width: 0;
 }
 
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .history-time {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.history-server-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid rgba(42, 157, 143, 0.45);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
 }
 
 .history-title {
