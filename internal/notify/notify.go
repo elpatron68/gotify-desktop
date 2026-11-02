@@ -13,15 +13,21 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
+// appDisplayName is the name shown on native toasts. It matches the
+// Windows AUMID and the freedesktop app name.
+const appDisplayName = "Gotify Desktop"
+
 // Notifier wraps Wails native notifications with a platform fallback.
 type Notifier struct {
-	mu      sync.Mutex
-	svc     *notifications.NotificationService
-	ready   bool
-	initErr error
-	lastErr error
-	logger  *log.Logger
-	logFile io.Closer
+	mu       sync.Mutex
+	svc      *notifications.NotificationService
+	ready    bool
+	initErr  error
+	lastErr  error
+	logger   *log.Logger
+	logFile  io.Closer
+	iconPNG  []byte
+	iconPath string
 }
 
 // Init initializes the platform notification system.
@@ -88,9 +94,10 @@ func (n *Notifier) LastError() string {
 
 // Show displays a desktop notification.
 //
-// On Windows, Wails/WinRT often reports success for unpackaged apps without a
-// visible toast (missing Start Menu AUMID shortcut). We therefore always use the
-// PowerShell AUMID fallback on Windows. On other OSes, try Wails first, then beeep.
+// Windows always uses native AUMID toasts and draws the app icon as
+// appLogoOverride. Linux uses the freedesktop Notify app_icon, because the
+// Wails backend sends an empty icon. macOS uses Wails first (the bundle icon)
+// and falls back to beeep with the same PNG.
 func (n *Notifier) Show(id, title, body string) error {
 	n.mu.Lock()
 	svc := n.svc
@@ -101,9 +108,10 @@ func (n *Notifier) Show(id, title, body string) error {
 	if title == "" {
 		title = "Gotify" // brand fallback; UI should pass a localized title when empty matters
 	}
+	icon := n.toastIconPath()
 
 	if runtime.GOOS == "windows" {
-		if err := showPlatformToast(title, body); err != nil {
+		if err := showPlatformToast(title, body, icon); err != nil {
 			n.setLastErr(err)
 			n.logf("windows toast failed id=%s: %v", id, err)
 			return err
@@ -115,22 +123,58 @@ func (n *Notifier) Show(id, title, body string) error {
 	}
 
 	var firstErr error
+	if runtime.GOOS == "linux" {
+		if err := showPlatformToast(title, body, icon); err != nil {
+			firstErr = err
+			n.logf("linux toast failed: %v — trying wails", err)
+		} else {
+			n.setLastErr(nil)
+			n.logf("linux toast sent id=%s title=%q", id, title)
+			applog.Printf("notify Show ok id=%s title=%q", id, title)
+			return nil
+		}
+	}
+
 	if ready && svc != nil {
-		err := svc.SendNotification(notifications.NotificationOptions{
+		opts := notifications.NotificationOptions{
 			ID:    id,
 			Title: title,
 			Body:  body,
-		})
+		}
+		// Linux Wails ignores the app-icon argument and only honours an
+		// image attachment. macOS shows the bundle icon on its own; an
+		// attachment would add a second, large picture.
+		if icon != "" && runtime.GOOS == "linux" {
+			opts.Attachments = []notifications.NotificationAttachment{{
+				ID:   "app-icon",
+				Path: icon,
+			}}
+		}
+		err := svc.SendNotification(opts)
 		if err == nil {
 			n.setLastErr(nil)
 			n.logf("wails notification sent id=%s title=%q", id, title)
 			return nil
 		}
-		firstErr = err
+		if firstErr != nil {
+			firstErr = fmt.Errorf("platform: %v; wails: %w", firstErr, err)
+		} else {
+			firstErr = err
+		}
 		n.logf("wails SendNotification failed: %v — trying fallback", err)
 	}
 
-	if err := showPlatformToast(title, body); err != nil {
+	// Linux already tried beeep inside showPlatformToast.
+	if runtime.GOOS == "linux" {
+		if firstErr == nil {
+			firstErr = fmt.Errorf("linux notification failed")
+		}
+		n.setLastErr(firstErr)
+		n.logf("notification failed: %v", firstErr)
+		return firstErr
+	}
+
+	if err := showPlatformToast(title, body, icon); err != nil {
 		if firstErr != nil {
 			err = fmt.Errorf("wails: %v; fallback: %w", firstErr, err)
 		}

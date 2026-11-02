@@ -40,8 +40,8 @@ type AppStatus struct {
 
 // App is the Wails-bound application core.
 type App struct {
-	wailsApp *application.App
-	window   *application.WebviewWindow
+	wailsApp  *application.App
+	window    *application.WebviewWindow
 	notifySvc *notifications.NotificationService
 
 	mu        sync.Mutex
@@ -94,6 +94,12 @@ func (a *App) bindWindow(window *application.WebviewWindow) {
 
 func (a *App) setNotificationService(svc *notifications.NotificationService) {
 	a.notifySvc = svc
+}
+
+func (a *App) setAppIcon(png []byte) {
+	if a.notify != nil {
+		a.notify.SetIconPNG(png)
+	}
 }
 
 // proxyMiddleware exposes the Gotify reverse-proxy for the Wails asset server.
