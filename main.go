@@ -42,6 +42,7 @@ func main() {
 		icon = appIcon
 	}
 	desktop := NewApp(icon)
+	desktop.setAppIcon(appIcon)
 	notifier := notifications.New()
 	desktop.setNotificationService(notifier)
 
@@ -62,13 +63,13 @@ func main() {
 	desktop.bindApp(app)
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            i18n.T("app.name"),
-		Width:            config.DefaultWindowWidth,
-		Height:           config.DefaultWindowHeight,
-		MinWidth:         config.MinWindowWidth,
-		MinHeight:        config.MinWindowHeight,
-		Hidden:           true,
-		BackgroundColour: application.NewRGB(18, 24, 32),
+		Title:              i18n.T("app.name"),
+		Width:              config.DefaultWindowWidth,
+		Height:             config.DefaultWindowHeight,
+		MinWidth:           config.MinWindowWidth,
+		MinHeight:          config.MinWindowHeight,
+		Hidden:             true,
+		BackgroundColour:   application.NewRGB(18, 24, 32),
 		UseApplicationMenu: true,
 	})
 	desktop.bindWindow(window)

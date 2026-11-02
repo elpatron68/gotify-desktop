@@ -12,15 +12,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/elpatron68/gotify-desktop/internal/applog"
 	toast "git.sr.ht/~jackmordaunt/go-toast/v2"
+	"github.com/elpatron68/gotify-desktop/internal/applog"
 	"golang.org/x/sys/windows"
 )
 
 const (
-	// windowsAppID is both the AUMID and the DisplayName shown on toasts /
-	// Action Center. go-toast writes DisplayName from AppID — use a pretty name.
-	windowsAppID = "Gotify Desktop"
 	// Last-resort hosts if our AUMID toast is blocked.
 	explorerAppID   = `Microsoft.Windows.Explorer`
 	powershellAppID = `{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe`
@@ -31,25 +28,26 @@ var (
 	windowsRegErr    error
 )
 
-func showPlatformToast(title, body string) error {
+func showPlatformToast(title, body, icon string) error {
+	iconSrc := windowsFileURI(icon)
 	windowsToastOnce.Do(func() {
-		windowsRegErr = ensureWindowsToastApp()
+		windowsRegErr = ensureWindowsToastApp(iconSrc)
 		if windowsRegErr != nil {
 			applog.Printf("toast register: %v", windowsRegErr)
 		} else {
-			applog.Printf("toast register: AUMID=%q ok", windowsAppID)
+			applog.Printf("toast register: AUMID=%q ok", appDisplayName)
 		}
 	})
 
 	// Prefer our branded AUMID so Action Center shows "Gotify Desktop", not
 	// wails.localhost / File Explorer / PowerShell.
-	if err := goToastPush(title, body); err != nil {
+	if err := goToastPush(title, body, iconSrc); err != nil {
 		applog.Printf("toast go-toast Push failed: %v", err)
 	} else {
-		applog.Printf("toast go-toast Push ok appID=%q", windowsAppID)
+		applog.Printf("toast go-toast Push ok appID=%q", appDisplayName)
 		return nil
 	}
-	if err := powershellToast(windowsAppID, title, body); err != nil {
+	if err := powershellToast(appDisplayName, title, body, iconSrc); err != nil {
 		applog.Printf("toast fail method=gotify-aumid: %v", err)
 	} else {
 		applog.Printf("toast Show() returned ok method=gotify-aumid")
@@ -66,7 +64,7 @@ func showPlatformToast(title, body string) error {
 	var errs []string
 	for _, a := range attempts {
 		applog.Printf("toast try fallback method=%s appID=%s title=%q", a.name, a.appID, title)
-		if err := powershellToast(a.appID, title, body); err != nil {
+		if err := powershellToast(a.appID, title, body, iconSrc); err != nil {
 			applog.Printf("toast fail method=%s: %v", a.name, err)
 			errs = append(errs, a.name+": "+err.Error())
 			continue
@@ -77,16 +75,17 @@ func showPlatformToast(title, body string) error {
 	return fmt.Errorf("windows toast failed: %s", strings.Join(errs, "; "))
 }
 
-func goToastPush(title, body string) error {
+func goToastPush(title, body, iconSrc string) error {
 	n := toast.Notification{
-		AppID: windowsAppID,
+		AppID: appDisplayName,
 		Title: title,
 		Body:  body,
+		Icon:  iconSrc,
 	}
 	return n.Push()
 }
 
-func ensureWindowsToastApp() error {
+func ensureWindowsToastApp(iconSrc string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -97,12 +96,13 @@ func ensureWindowsToastApp() error {
 	}
 	applog.Printf("toast exe=%s", exe)
 	if err := toast.SetAppData(toast.AppData{
-		AppID:         windowsAppID,
+		AppID:         appDisplayName,
 		ActivationExe: exe,
+		IconPath:      iconSrc,
 	}); err != nil {
 		return err
 	}
-	if err := setCurrentProcessAUMID(windowsAppID); err != nil {
+	if err := setCurrentProcessAUMID(appDisplayName); err != nil {
 		return err
 	}
 	if err := ensureStartMenuShortcut(exe); err != nil {
@@ -127,13 +127,13 @@ func setCurrentProcessAUMID(appID string) error {
 	return nil
 }
 
-func powershellToast(appID, title, body string) error {
+func powershellToast(appID, title, body, iconSrc string) error {
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'Stop'
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $xmlText = @'
-<toast><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual><audio src="ms-winsoundevent:Notification.Default"/></toast>
+%s
 '@
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($xmlText)
@@ -141,7 +141,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 $n = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(%s)
 $n.Show($toast)
 Write-Output ('notifier_ok setting=' + $n.Setting)
-`, xmlEscape(title), xmlEscape(body), psQuote(appID))
+`, windowsToastXML(title, body, iconSrc), psQuote(appID))
 
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -174,6 +174,7 @@ $ErrorActionPreference = 'Stop'
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut(%s)
 $Shortcut.TargetPath = %s
+$Shortcut.IconLocation = %s
 $Shortcut.WorkingDirectory = %s
 $Shortcut.Description = 'Gotify Desktop'
 $Shortcut.Save()
@@ -214,7 +215,7 @@ public static class LnkAumid {
 '@
 Add-Type -TypeDefinition $sig -ErrorAction SilentlyContinue
 [LnkAumid]::Set(%s, %s)
-`, psQuote(lnk), psQuote(exe), psQuote(filepath.Dir(exe)), psQuote(lnk), psQuote(windowsAppID))
+`, psQuote(lnk), psQuote(exe), psQuote(exe+",0"), psQuote(filepath.Dir(exe)), psQuote(lnk), psQuote(appDisplayName))
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()
@@ -226,15 +227,4 @@ Add-Type -TypeDefinition $sig -ErrorAction SilentlyContinue
 
 func psQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
-
-func xmlEscape(s string) string {
-	r := strings.NewReplacer(
-		`&`, "&amp;",
-		`<`, "&lt;",
-		`>`, "&gt;",
-		`"`, "&quot;",
-		`'`, "&apos;",
-	)
-	return r.Replace(s)
 }
