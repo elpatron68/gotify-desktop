@@ -1,6 +1,6 @@
 import './style.css';
 import {
-  Connect,
+  AddServer,
   GetStatus,
   GetClientToken,
   GetUIPath,
@@ -12,8 +12,11 @@ import {
   ClearNotificationHistory,
   LeaveNotificationHistory,
   FormatHistoryEntryMarkdown,
-  ListApplications,
-  SendApplicationMessage,
+  ListApplicationsForServer,
+  SendApplicationMessageToServer,
+  SetActiveServer,
+  RemoveServer,
+  RenameServer,
   LeaveSendMessage,
   SaveWindowState,
 } from '../bindings/github.com/elpatron68/gotify-desktop/app.js';
@@ -40,6 +43,7 @@ const historyEmpty = document.getElementById('history-empty');
 const historyToast = document.getElementById('history-toast');
 const historyModeAll = document.getElementById('history-mode-all');
 const sendForm = document.getElementById('send-form');
+const sendServer = document.getElementById('send-server');
 const sendApp = document.getElementById('send-app');
 const sendTitle = document.getElementById('send-message-title');
 const sendBody = document.getElementById('send-message-body');
@@ -56,12 +60,19 @@ const statusLine = document.getElementById('status-line');
 const connectBtn = document.getElementById('connect-btn');
 const serverInput = document.getElementById('server-url');
 const usernameInput = document.getElementById('username');
+const serverLabelInput = document.getElementById('server-label');
+const serverListSection = document.getElementById('server-list-section');
+const serverListEl = document.getElementById('server-list');
 
 /** @type {'setup'|'gotify'|'history'|'send'|null} */
 let currentView = null;
 let bootstrapped = false;
+/** @type {string|null} */
+let activeGotifyServerId = null;
 /** @type {Array<{id:number,name:string,description?:string,defaultPriority?:number}>} */
 let sendAppsCache = [];
+/** @type {Array<{id:string,label:string,serverUrl:string,active?:boolean}>} */
+let serversCache = [];
 
 function showError(msg) {
   if (!msg) {
@@ -82,25 +93,113 @@ function applySession(token) {
   }
 }
 
+function updateConnectButtonLabel(configured) {
+  if (!connectBtn) return;
+  connectBtn.textContent = configured ? t('setup.add_server') : t('setup.connect');
+}
+
+function renderServerList(servers) {
+  if (!serverListEl || !serverListSection) return;
+  const list = servers || [];
+  serverListSection.hidden = list.length === 0;
+  serverListEl.textContent = '';
+  for (const srv of list) {
+    const li = document.createElement('li');
+    li.className = 'server-item' + (srv.active ? ' is-active' : '');
+
+    const meta = document.createElement('div');
+    meta.className = 'server-item-meta';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'server-item-name';
+    const dot = document.createElement('span');
+    dot.className = 'server-status-dot' + (srv.connected ? ' is-connected' : srv.error ? ' is-error' : '');
+    dot.title = srv.error || (srv.connected ? t('status.stream_connected') : t('status.stream_disconnected'));
+    const name = document.createElement('strong');
+    name.textContent = srv.label || srv.serverUrl || srv.id;
+    nameRow.append(dot, name);
+    if (srv.active) {
+      const badge = document.createElement('span');
+      badge.className = 'server-active-badge';
+      badge.textContent = t('setup.active_badge');
+      nameRow.append(badge);
+    }
+
+    const url = document.createElement('div');
+    url.className = 'server-item-url';
+    url.textContent = srv.serverUrl || '';
+
+    meta.append(nameRow, url);
+
+    const actions = document.createElement('div');
+    actions.className = 'server-item-actions';
+
+    if (!srv.active) {
+      const useBtn = document.createElement('button');
+      useBtn.type = 'button';
+      useBtn.textContent = t('setup.set_active');
+      useBtn.addEventListener('click', () => {
+        SetActiveServer(srv.id).catch((err) => showError(String(err)));
+      });
+      actions.append(useBtn);
+    }
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.className = 'btn-secondary';
+    renameBtn.textContent = t('setup.rename');
+    renameBtn.addEventListener('click', async () => {
+      const next = window.prompt(t('setup.rename'), srv.label || '');
+      if (next == null) return;
+      try {
+        await RenameServer(srv.id, next.trim());
+      } catch (err) {
+        showError(String(err));
+      }
+    });
+    actions.append(renameBtn);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-danger';
+    removeBtn.textContent = t('setup.remove');
+    removeBtn.addEventListener('click', async () => {
+      try {
+        await RemoveServer(srv.id);
+      } catch (err) {
+        showError(String(err));
+      }
+    });
+    actions.append(removeBtn);
+
+    li.append(meta, actions);
+    serverListEl.append(li);
+  }
+}
+
 function showSetup(status) {
   currentView = 'setup';
   setupView.hidden = false;
   gotifyView.hidden = true;
   historyView.hidden = true;
   sendView.hidden = true;
-  if (status?.serverUrl) {
+  if (status?.serverUrl && !status?.configured) {
     serverInput.value = status.serverUrl;
   }
-  if (status?.username && usernameInput) {
+  if (status?.username && usernameInput && !status?.configured) {
     usernameInput.value = status.username;
   }
+  renderServerList(status?.servers || []);
+  updateConnectButtonLabel(Boolean(status?.configured));
   frame.src = 'about:blank';
+  activeGotifyServerId = null;
   updateStatusLine(status);
 }
 
 async function showGotify(payload, {forceReload = false} = {}) {
   let token = payload?.token;
   let uiPath = payload?.uiPath;
+  const serverId = payload?.serverId || null;
   if (!token) {
     token = await GetClientToken();
   }
@@ -108,6 +207,13 @@ async function showGotify(payload, {forceReload = false} = {}) {
     uiPath = await GetUIPath();
   }
   applySession(token);
+
+  if (serverId && serverId !== activeGotifyServerId) {
+    forceReload = true;
+  }
+  if (serverId) {
+    activeGotifyServerId = serverId;
+  }
 
   currentView = 'gotify';
   setupView.hidden = true;
@@ -148,6 +254,10 @@ function updateStatusLine(status) {
 
 async function applyStatus(status) {
   if (!status) return;
+  if (currentView === 'setup') {
+    renderServerList(status.servers || []);
+    updateConnectButtonLabel(Boolean(status.configured));
+  }
   // History/send are left only via Back (show-gotify / show-setup events), never by a status tick.
   if (currentView === 'history' || currentView === 'send') {
     updateStatusLine(status);
@@ -167,7 +277,10 @@ async function applyStatus(status) {
   // from a late/racy status tick — Settings is the only way back.
   if (status.view === 'gotify' && status.configured) {
     bootstrapped = true;
-    await showGotify(null, {forceReload: false});
+    await showGotify({
+      serverId: status.activeServerId,
+      serverUrl: status.serverUrl,
+    }, {forceReload: false});
   } else if (status.configured && bootstrapped && currentView === 'gotify') {
     updateStatusLine(status);
     return;
@@ -175,6 +288,8 @@ async function applyStatus(status) {
     if (currentView !== 'setup') {
       showSetup(status);
     } else {
+      renderServerList(status.servers || []);
+      updateConnectButtonLabel(Boolean(status.configured));
       updateStatusLine(status);
       return;
     }
@@ -247,6 +362,10 @@ function renderHistory(entries) {
     const when = new Date(entry.received_at);
     time.textContent = Number.isNaN(when.getTime()) ? '' : when.toLocaleString();
 
+    const label = document.createElement('span');
+    label.className = 'history-server-badge';
+    label.textContent = entry.server_label || t('history.unknown_server');
+
     const title = document.createElement('p');
     title.className = 'history-title';
     title.textContent = entry.title || '';
@@ -255,7 +374,11 @@ function renderHistory(entries) {
     body.className = 'history-body';
     body.textContent = entry.body || '';
 
-    main.append(time, title, body);
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.append(time, label);
+
+    main.append(meta, title, body);
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
@@ -365,12 +488,38 @@ function fillSendApps(apps) {
   sendSubmit.disabled = empty;
 }
 
+function fillSendServers(servers, activeId) {
+  serversCache = servers || [];
+  if (!sendServer) return;
+  const prev = sendServer.value;
+  sendServer.textContent = '';
+  for (const srv of serversCache) {
+    const opt = document.createElement('option');
+    opt.value = srv.id;
+    opt.textContent = srv.label || srv.serverUrl || srv.id;
+    sendServer.append(opt);
+  }
+  const prefer = prev || activeId || '';
+  if (prefer && [...sendServer.options].some((o) => o.value === prefer)) {
+    sendServer.value = prefer;
+  } else if (sendServer.options.length > 0) {
+    sendServer.selectedIndex = 0;
+  }
+  sendServer.disabled = serversCache.length === 0;
+}
+
 async function loadSendApplications() {
   sendNotConfigured.hidden = true;
   sendAppsEmpty.hidden = true;
   showSendError('');
+  const serverID = sendServer?.value || '';
+  if (!serverID) {
+    fillSendApps([]);
+    sendNotConfigured.hidden = false;
+    return;
+  }
   try {
-    const apps = await ListApplications();
+    const apps = await ListApplicationsForServer(serverID);
     fillSendApps(apps);
   } catch (err) {
     const msg = String(err || '');
@@ -390,6 +539,13 @@ async function showSend() {
   historyView.hidden = true;
   sendView.hidden = false;
   parkGotifyFrame();
+  try {
+    const status = await GetStatus();
+    fillSendServers(status?.servers || [], status?.activeServerId || '');
+  } catch (err) {
+    console.error(err);
+    fillSendServers([], '');
+  }
   await loadSendApplications();
 }
 
@@ -412,6 +568,10 @@ sendApp.addEventListener('change', () => {
   applyDefaultPriorityForSelectedApp();
 });
 
+sendServer?.addEventListener('change', () => {
+  loadSendApplications().catch(console.error);
+});
+
 document.getElementById('send-back').addEventListener('click', () => {
   LeaveSendMessage().catch(console.error);
 });
@@ -419,10 +579,15 @@ document.getElementById('send-back').addEventListener('click', () => {
 sendForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   showSendError('');
+  const serverID = sendServer?.value || '';
   const appID = Number(sendApp.value);
   const title = sendTitle.value.trim();
   const message = sendBody.value.trim();
   const priority = clampPriority(sendPriority.value);
+  if (!serverID) {
+    showSendError(t('send.not_configured'));
+    return;
+  }
   if (!appID) {
     showSendError(t('send.apps_empty'));
     return;
@@ -434,7 +599,7 @@ sendForm.addEventListener('submit', async (event) => {
   sendSubmit.disabled = true;
   sendSubmit.textContent = t('send.sending');
   try {
-    await SendApplicationMessage(appID, title, message, priority);
+    await SendApplicationMessageToServer(serverID, appID, title, message, priority);
     sendBody.value = '';
     flashSendToast(t('send.sent'));
   } catch (err) {
@@ -461,16 +626,30 @@ form.addEventListener('submit', async (event) => {
   const serverUrl = serverInput.value.trim();
   const username = usernameInput.value;
   const password = document.getElementById('password').value;
+  const label = serverLabelInput?.value?.trim() || '';
+  let wasConfigured = false;
   try {
-    await Connect(serverUrl, username, password);
+    const before = await GetStatus();
+    wasConfigured = Boolean(before?.configured);
+    await AddServer(serverUrl, username, password, label);
     document.getElementById('password').value = '';
-    bootstrapped = true;
-    await showGotify(null, {forceReload: true});
+    if (serverLabelInput) serverLabelInput.value = '';
+    const status = await GetStatus();
+    if (!wasConfigured) {
+      bootstrapped = true;
+      await showGotify({
+        serverId: status?.activeServerId,
+        serverUrl: status?.serverUrl,
+      }, {forceReload: true});
+    } else {
+      showSetup(status);
+    }
   } catch (err) {
     showError(String(err));
   } finally {
     connectBtn.disabled = false;
-    connectBtn.textContent = t('setup.connect');
+    updateConnectButtonLabel(wasConfigured || currentView === 'setup');
+    GetStatus().then((s) => updateConnectButtonLabel(Boolean(s?.configured))).catch(() => {});
   }
 });
 
@@ -494,6 +673,7 @@ Events.On('history-updated', () => {
 });
 Events.On('show-gotify', (event) => {
   bootstrapped = true;
+  // showGotify force-reloads when serverId changes (active switch).
   showGotify(event?.data, {forceReload: false}).catch(console.error);
 });
 // Native OS toasts come from Go only. This event only refreshes the iframe list.

@@ -6,6 +6,7 @@ type Callbacks struct {
 	OnSettings          func()
 	OnHistory           func()
 	OnSend              func()
+	OnSelectServer      func(id string)
 	OnAutostart         func(enabled bool)
 	OnLanguage          func(code string)
 	OnAboutLicense      func()
@@ -15,11 +16,19 @@ type Callbacks struct {
 	OnQuit              func()
 }
 
+// ServerEntry is one Gotify server in the tray Servers submenu.
+type ServerEntry struct {
+	ID     string
+	Label  string
+	Active bool
+}
+
 // Options configures initial tray menu state.
 type Options struct {
 	AutostartEnabled bool
 	Locale           string
 	Languages        []Language
+	Servers          []ServerEntry
 	Labels           Labels
 }
 
@@ -31,32 +40,35 @@ type Language struct {
 
 // Labels are localized tray strings (resolved by the app via i18n).
 type Labels struct {
-	Tooltip                   string
-	StatusStarting            string
-	StatusTooltip             string
-	Open                      string
-	OpenTooltip               string
-	Settings                  string
-	SettingsTooltip           string
-	History                   string
-	HistoryTooltip            string
-	Send                      string
-	SendTooltip               string
-	Autostart                 string
-	AutostartTooltip          string
-	Language                  string
-	LanguageTooltip           string
-	About                     string
-	AboutTooltip              string
-	AboutAuthor               string
-	AboutLicense              string
-	AboutLicenseTooltip       string
-	AboutVersion              string
-	AboutVersionTooltip       string
-	AboutCheckUpdates         string
-	AboutCheckUpdatesTooltip  string
-	AboutRepo                 string
-	AboutRepoTooltip          string
-	Quit                      string
-	QuitTooltip               string
+	Tooltip                  string
+	StatusStarting           string
+	StatusTooltip            string
+	Open                     string
+	OpenTooltip              string
+	Settings                 string
+	SettingsTooltip          string
+	Servers                  string
+	ServersTooltip           string
+	ServersEmpty             string
+	History                  string
+	HistoryTooltip           string
+	Send                     string
+	SendTooltip              string
+	Autostart                string
+	AutostartTooltip         string
+	Language                 string
+	LanguageTooltip          string
+	About                    string
+	AboutTooltip             string
+	AboutAuthor              string
+	AboutLicense             string
+	AboutLicenseTooltip      string
+	AboutVersion             string
+	AboutVersionTooltip      string
+	AboutCheckUpdates        string
+	AboutCheckUpdatesTooltip string
+	AboutRepo                string
+	AboutRepoTooltip         string
+	Quit                     string
+	QuitTooltip              string
 }

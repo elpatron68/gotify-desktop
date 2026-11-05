@@ -125,6 +125,22 @@ func (c *Controller) SetLabels(l Labels) {
 	c.mu.Unlock()
 }
 
+// SetServers rebuilds the tray menu with an updated Servers submenu.
+func (c *Controller) SetServers(servers []ServerEntry) {
+	c.mu.Lock()
+	c.opts.Servers = servers
+	tray := c.tray
+	c.mu.Unlock()
+	if tray == nil {
+		return
+	}
+	menu := c.buildMenu()
+	tray.SetMenu(menu)
+	c.mu.Lock()
+	c.menu = menu
+	c.mu.Unlock()
+}
+
 // SetLocaleChecked marks the active language in the submenu.
 func (c *Controller) SetLocaleChecked(code string) {
 	c.mu.Lock()
@@ -161,6 +177,24 @@ func (c *Controller) buildMenu() *application.Menu {
 			c.cb.OnSettings()
 		}
 	})
+
+	serversMenu := menu.AddSubmenu(or(l.Servers, "Servers"))
+	if len(c.opts.Servers) == 0 {
+		empty := serversMenu.Add(or(l.ServersEmpty, "No servers configured"))
+		empty.SetEnabled(false)
+	} else {
+		for _, srv := range c.opts.Servers {
+			id := srv.ID
+			label := or(srv.Label, id)
+			item := serversMenu.AddRadio(label, srv.Active)
+			item.OnClick(func(_ *application.Context) {
+				if c.cb.OnSelectServer != nil {
+					c.cb.OnSelectServer(id)
+				}
+			})
+		}
+	}
+
 	menu.Add(or(l.History, "Recent notifications")).OnClick(func(_ *application.Context) {
 		if c.cb.OnHistory != nil {
 			c.cb.OnHistory()

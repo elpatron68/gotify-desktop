@@ -8,7 +8,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#installation)
 
-Desktop client for a self-hosted [Gotify](https://gotify.net/) server. The app shows new messages as desktop notifications, keeps a short history, and stays available from the system tray.
+Desktop client for one or more self-hosted [Gotify](https://gotify.net/) servers. The app shows new messages as desktop notifications, keeps a short mixed history, and stays available from the system tray.
 
 Prebuilt packages are available for **Linux (x86_64)**, **Windows (x86_64)**, and **macOS (Apple Silicon)**.
 
@@ -17,35 +17,36 @@ Prebuilt packages are available for **Linux (x86_64)**, **Windows (x86_64)**, an
 <table>
   <tr>
     <td align="center" valign="top" width="33%">
-      <img src="docs/screenshots/login.png" alt="Sign-in screen" width="100%">
+      <img src="docs/screenshots/login.png" alt="Server settings" width="100%">
       <br>
-      <sub>Sign in. The password is not stored.</sub>
+      <sub>Connect or manage servers. The password is not stored.</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <img src="docs/screenshots/recent-notifications.png" alt="Recent notifications" width="100%">
       <br>
-      <sub>Recent notifications</sub>
+      <sub>Recent notifications (mixed timeline with server labels)</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <img src="docs/screenshots/send-message.png" alt="Send a message" width="100%">
       <br>
-      <sub>Send a message to an application</sub>
+      <sub>Send a message to an application on a chosen server</sub>
     </td>
   </tr>
 </table>
 
 ## Features
 
-- Sign in with your Gotify username and password. The password is not stored; the app creates a client token.
-- Native desktop notifications when the server sends a new message.
-- System tray on Linux, Windows, and macOS: open the window, recent notifications, send a message, settings, start at login, and quit. macOS also keeps the application menu.
-- History of the last 100 notifications. Copy an entry as Markdown or clear the list. Store toast notifications only, or every message.
-- Send a message: pick one of your Gotify applications and submit a title, body, and priority. The application token stays inside the app.
+- Connect to one or more Gotify servers with username and password. The password is not stored; the app creates a client token per server.
+- Parallel live streams: desktop notifications from every enabled server. With more than one server, toast titles are prefixed with the server label.
+- System tray on Linux, Windows, and macOS: open the window, **Servers** (switch active), recent notifications, send a message, settings, start at login, and quit. macOS also keeps the application menu.
+- Settings: list of servers (set active, rename, remove) plus a form to add another account. Re-connecting the same URL and username refreshes that account instead of duplicating it.
+- History of the last 100 notifications across all servers, each with a server label. Copy an entry as Markdown or clear the list. Store toast notifications only, or every message.
+- Send a message: choose a server, pick one of its Gotify applications, and submit a title, body, and priority. Application tokens stay inside the app.
 - Updates on startup (at most every 24 hours) and via **Check for Updates**. The app asks before installing and checks the file against `SHA256SUMS`.
 - Start at login.
 - Closing the window leaves the app in the tray. Quit from the tray menu or the application menu.
 - Window size, position, and maximised state are remembered. Positions on a monitor left of or above the primary display may be discarded. Under Wayland the system often reports `0,0`, so only size and maximised state are restored.
-- The Gotify web UI is embedded in the app.
+- The Gotify web UI for the **active** server is embedded in the app. Switching the active server reloads that UI.
 - Interface languages: German, English, French, and Spanish. The default is the operating-system language, or English if that language is not bundled. Change it via **Language** in the tray or the application menu.
 
 ## Installation
@@ -168,7 +169,7 @@ Configuration and history are stored in the user directory:
 | macOS | `~/Library/Application Support/gotify-desktop/` |
 | Windows | `%AppData%\gotify-desktop\` |
 
-That folder holds `config.json` (server, token, language, autostart, window, last update check), `history.json` (the last 100 notifications), and `notify.log` (notes when notifications do not appear).
+That folder holds `config.json` (servers, active server, language, autostart, window, last update check), `history.json` (the last 100 notifications), and `notify.log` (notes when notifications do not appear). An older single-server `config.json` is migrated on first load.
 
 ## For developers
 
@@ -186,13 +187,21 @@ Ubuntu 24.04:
 sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
-Wails v3 CLI (`$HOME/go/bin` on `PATH`):
+Wails v3 CLI (`$HOME/go/bin` on `PATH`). On Linux the default install may need GTK 4 / WebKitGTK headers; under WSL you can install the CLI without CGO:
 
 ```bash
+# Linux with GTK headers available
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+
+# WSL / cross-compile helper without linking GTK
+CGO_ENABLED=0 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
 ```
 
-Running a prebuilt binary only needs the runtime packages in [Linux](#linux). The dev packages are for building.
+Running a prebuilt binary only needs the runtime packages in [Linux](#linux). The dev packages are for building. Cross-compiling a Windows EXE from Linux/WSL does not need GTK:
+
+```bash
+CGO_ENABLED=0 wails3 build GOOS=windows GOARCH=amd64
+```
 
 ### Develop
 
@@ -265,7 +274,32 @@ Builds with version `0.0.0` skip the check. If the matching package is missing, 
 
 ### Configuration
 
-Fields in `config.json`: `server_url`, `client_token`, `min_priority` (default `0`), `last_message_id`, `autostart`, `locale` (optional BCP-47 tag such as `de` or `en`; empty = OS language), `history_mode` (`toasts` or `all`; empty or unknown becomes `toasts`), `window_width` / `window_height` (0 or missing = 1100×800, minimum 640×480), `window_x` / `window_y` with `window_pos_set` (so `0,0` is valid), `window_maximised`, `update_checked_unix`.
+Top-level fields in `config.json`:
+
+| Field | Meaning |
+|-------|---------|
+| `servers` | List of Gotify accounts |
+| `active_server_id` | Which account drives the embedded UI and the default send target |
+| `autostart` | Start at login |
+| `locale` | Optional BCP-47 tag such as `de` or `en`; empty = OS language |
+| `history_mode` | `toasts` (default) or `all` |
+| `window_*` | Size, position (`window_pos_set` so `0,0` is valid), maximised |
+| `update_checked_unix` | Last automatic update check |
+
+Each entry in `servers`:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Stable UUID |
+| `label` | Display name (default: hostname) |
+| `server_url` | Gotify base URL |
+| `username` | Remembered login name (no password) |
+| `client_token` | Client token for stream and UI |
+| `min_priority` | Minimum priority for toasts (default `0`) |
+| `last_message_id` | Dedup cursor for that server’s stream |
+| `enabled` | When `false`, the stream is not started |
+
+Legacy single-server keys (`server_url`, `client_token`, …) at the top level are read once and rewritten into `servers`.
 
 UI strings live in `internal/i18n/locales/*.json`. English is the fallback. Bundled languages: `en`, `de`, `fr`, `es`.
 

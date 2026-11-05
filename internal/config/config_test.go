@@ -1,8 +1,8 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -99,24 +99,26 @@ func TestShouldNotify(t *testing.T) {
 func TestSaveLoad(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmp)
-	// UserConfigDir on Linux uses XDG_CONFIG_HOME; on other platforms may differ.
-	// Force path by overriding via writing through Dir after setting home-like env.
 	if dir, err := Dir(); err == nil {
 		_ = os.MkdirAll(dir, 0o700)
 	}
 
+	id := NewServerID()
 	cfg := Config{
-		ServerURL:   "https://gotify.example.com",
-		Username:    "admin",
-		ClientToken: "secret",
-		MinPriority: 2,
+		Servers: []ServerAccount{{
+			ID:          id,
+			Label:       "gotify.example.com",
+			ServerURL:   "https://gotify.example.com",
+			Username:    "admin",
+			ClientToken: "secret",
+			MinPriority: 2,
+			Enabled:     true,
+		}},
+		ActiveServerID: id,
 	}
-	// Save via direct path if UserConfigDir doesn't respect XDG in this env
-	path := filepath.Join(tmp, appDirName, "config.json")
 	if d, err := Dir(); err == nil {
-		path = filepath.Join(d, "config.json")
+		_ = os.MkdirAll(d, 0o700)
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o700)
 
 	if err := Save(cfg); err != nil {
 		t.Fatal(err)
@@ -128,10 +130,148 @@ func TestSaveLoad(t *testing.T) {
 	if !loaded.Configured() {
 		t.Fatal("expected configured")
 	}
-	if loaded.ServerURL != cfg.ServerURL || loaded.Username != cfg.Username || loaded.ClientToken != cfg.ClientToken || loaded.MinPriority != cfg.MinPriority {
-		t.Fatalf("loaded %+v want %+v", loaded, cfg)
+	if len(loaded.Servers) != 1 {
+		t.Fatalf("servers=%d", len(loaded.Servers))
+	}
+	s := loaded.Servers[0]
+	if s.ServerURL != "https://gotify.example.com" || s.Username != "admin" || s.ClientToken != "secret" || s.MinPriority != 2 {
+		t.Fatalf("loaded %+v", s)
+	}
+	if loaded.ActiveServerID != id {
+		t.Fatalf("active=%q want %q", loaded.ActiveServerID, id)
+	}
+
+	// Save must not write legacy singular fields.
+	path, err := Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var top map[string]any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := top["client_token"]; ok {
+		t.Fatal("legacy top-level client_token should not be saved")
+	}
+	if _, ok := top["server_url"]; ok {
+		t.Fatal("legacy top-level server_url should not be saved")
 	}
 }
+
+func TestParseLegacyMigration(t *testing.T) {
+	raw := []byte(`{
+  "server_url": "https://gotify.example.com",
+  "username": "admin",
+  "client_token": "secret",
+  "min_priority": 3,
+  "last_message_id": 9
+}`)
+	cfg, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Servers) != 1 {
+		t.Fatalf("servers=%d", len(cfg.Servers))
+	}
+	s := cfg.Servers[0]
+	if s.ServerURL != "https://gotify.example.com" || s.Username != "admin" || s.ClientToken != "secret" {
+		t.Fatalf("%+v", s)
+	}
+	if s.MinPriority != 3 || s.LastMessageID != 9 || !s.Enabled {
+		t.Fatalf("%+v", s)
+	}
+	if s.Label != "gotify.example.com" {
+		t.Fatalf("label=%q", s.Label)
+	}
+	if cfg.ActiveServerID != s.ID || s.ID == "" {
+		t.Fatalf("active=%q id=%q", cfg.ActiveServerID, s.ID)
+	}
+}
+
+func TestParseAlreadyMigratedUntouched(t *testing.T) {
+	raw := []byte(`{
+  "servers": [{
+    "id": "abc-1",
+    "label": "home",
+    "server_url": "https://a.example",
+    "username": "u",
+    "client_token": "tok",
+    "enabled": true
+  }],
+  "active_server_id": "abc-1"
+}`)
+	cfg, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Servers) != 1 || cfg.Servers[0].ID != "abc-1" || cfg.ActiveServerID != "abc-1" {
+		t.Fatalf("%+v", cfg)
+	}
+	if cfg.Servers[0].Label != "home" {
+		t.Fatalf("label=%q", cfg.Servers[0].Label)
+	}
+}
+
+func TestParseCorruptActiveRepaired(t *testing.T) {
+	raw := []byte(`{
+  "servers": [{
+    "id": "abc-1",
+    "label": "home",
+    "server_url": "https://a.example",
+    "client_token": "tok",
+    "enabled": true
+  }],
+  "active_server_id": "missing"
+}`)
+	cfg, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ActiveServerID != "abc-1" {
+		t.Fatalf("active=%q", cfg.ActiveServerID)
+	}
+}
+
+func TestParseEnabledDefaultsTrue(t *testing.T) {
+	raw := []byte(`{
+  "servers": [{
+    "id": "abc-1",
+    "label": "home",
+    "server_url": "https://a.example",
+    "client_token": "tok"
+  }]
+}`)
+	cfg, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Servers[0].Enabled {
+		t.Fatal("enabled should default true")
+	}
+}
+
+func TestHostnameLabel(t *testing.T) {
+	if HostnameLabel("https://gotify.example.com/path") != "gotify.example.com" {
+		t.Fatal(HostnameLabel("https://gotify.example.com/path"))
+	}
+}
+
+func TestFindByURLUser(t *testing.T) {
+	cfg := Config{Servers: []ServerAccount{{
+		ID: "1", ServerURL: "https://a.example", Username: "u", ClientToken: "t", Enabled: true,
+	}}}
+	if cfg.FindByURLUser("https://a.example", "u") == nil {
+		t.Fatal("expected find")
+	}
+	if cfg.FindByURLUser("https://a.example", "other") != nil {
+		t.Fatal("expected miss")
+	}
+}
+
 
 func TestResolvedWindowSizeDefaults(t *testing.T) {
 	c := Default()
