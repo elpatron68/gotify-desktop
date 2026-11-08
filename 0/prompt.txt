@@ -1,0 +1,51 @@
+ja, mach das bitte
+
+---
+
+Dieses Fenster öffnet sich, wenn via About Menü nach Updates gesucht wird (getestet unter windows)
+
+---
+
+Jetzt (nach ca. 8 Sekunden Wartezeit
+
+---
+
+Hab ich hier ein Konnktivitätsproblem? Oder gibt es Probleme mit der Github API?
+
+---
+
+Merkwürdig. Wir sind hier unter WSL. Invoke von Powershell Terminal auf dem gleichen Gerät:
+PS C:\Users\mbusc> Measure-Command { Invoke-RestMethod -Uri "https://api.github.com/repos/elpatron68/gotify-desktop/releases/latest" -Headers @{ "User-Agent"="gotify-desktop-test" } }
+Invoke-RestMethod : Der Remoteserver hat einen Fehler zurückgegeben: (504) Gatewaytimeout.
+In Zeile:1 Zeichen:19
++ ... e-Command { Invoke-RestMethod -Uri "https://api.github.com/repos/elpa ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-RestMethod], WebExc
+   eption
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeRestMethodCommand
+
+
+
+Days              : 0
+Hours             : 0
+Minutes           : 0
+Seconds           : 13
+Milliseconds      : 97
+Ticks             : 130978814
+TotalDays         : 0,000151595849537037
+TotalHours        : 0,00363830038888889
+TotalMinutes      : 0,218298023333333
+TotalSeconds      : 13,0978814
+TotalMilliseconds : 13097,8814
+
+---
+
+@\home\markus\.cursor\projects\home-markus-gotify-desktop\terminals\1.txt:536-539
+
+---
+
+Vielleicht doch ein Problem bei Github? Hier wird nichts gefiltert (außer von adguard home, aber DNS scheint mir nicht das problem zu sein)
+
+---
+
+committe die letzten änderungen in den offenen pr
