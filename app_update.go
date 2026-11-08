@@ -54,7 +54,7 @@ func (a *App) runUpdateCheck(manual bool) {
 	if err != nil {
 		applog.Printf("update check: %v", err)
 		if manual {
-			a.showUpdateError(fmt.Sprintf("%s\n%s", i18n.T("update.check_failed"), err.Error()))
+			a.showUpdateError(fmt.Sprintf("%s\n%s\n%s", i18n.T("update.check_failed"), err.Error(), version.ReleasesURL))
 		}
 		return
 	}
