@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ const (
 	apiTimeout        = 20 * time.Second
 	downloadTimeout   = 5 * time.Minute
 	checksumAssetName = "SHA256SUMS"
+	apiMaxAttempts    = 3
 )
 
 // Asset is one file attached to a GitHub release.
@@ -56,7 +58,8 @@ func (c *Client) httpClient(timeout time.Duration) *http.Client {
 		return c.HTTP
 	}
 	return &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: githubTransport(),
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
@@ -69,8 +72,70 @@ func (c *Client) httpClient(timeout time.Duration) *http.Client {
 	}
 }
 
+// githubTransport prefers IPv4. Broken IPv6 paths to api.github.com are a
+// common cause of multi-second gateway timeouts on Windows.
+func githubTransport() http.RoundTripper {
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          4,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if conn, err := dialer.DialContext(ctx, "tcp4", addr); err == nil {
+				return conn, nil
+			}
+			return dialer.DialContext(ctx, network, addr)
+		},
+	}
+}
+
 // LatestRelease fetches the latest non-prerelease GitHub release.
+// Transient gateway failures (502/503/504) are retried a few times.
 func (c *Client) LatestRelease(ctx context.Context) (Release, error) {
+	var lastErr error
+	for attempt := 1; attempt <= apiMaxAttempts; attempt++ {
+		rel, err := c.latestReleaseOnce(ctx)
+		if err == nil {
+			return rel, nil
+		}
+		lastErr = err
+		if attempt == apiMaxAttempts || !isTransientUpdateError(err) {
+			break
+		}
+		delay := time.Duration(attempt) * 500 * time.Millisecond
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return Release{}, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return Release{}, lastErr
+}
+
+func isTransientUpdateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "HTTP 502") ||
+		strings.Contains(msg, "HTTP 503") ||
+		strings.Contains(msg, "HTTP 504") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "Temporary failure") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "TLS handshake timeout")
+}
+
+func (c *Client) latestReleaseOnce(ctx context.Context) (Release, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiURL(), nil)
 	if err != nil {
 		return Release{}, err
@@ -89,7 +154,7 @@ func (c *Client) LatestRelease(ctx context.Context) (Release, error) {
 		return Release{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return Release{}, fmt.Errorf("github releases: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return Release{}, httpStatusError("github releases", resp.StatusCode, body)
 	}
 	var rel Release
 	if err := json.Unmarshal(body, &rel); err != nil {
@@ -133,8 +198,44 @@ func (c *Client) Download(ctx context.Context, url string, w io.Writer) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("download: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return httpStatusError("download", resp.StatusCode, body)
 	}
 	_, err = io.Copy(w, resp.Body)
 	return err
+}
+
+const maxHTTPErrorDetail = 160
+
+// httpStatusError builds a short, dialog-safe error for non-OK HTTP responses.
+// HTML bodies (GitHub web error pages) are omitted; JSON {"message"} is preferred.
+func httpStatusError(prefix string, status int, body []byte) error {
+	detail := httpErrorDetail(body)
+	if detail == "" {
+		return fmt.Errorf("%s: HTTP %d", prefix, status)
+	}
+	return fmt.Errorf("%s: HTTP %d: %s", prefix, status, detail)
+}
+
+func httpErrorDetail(body []byte) string {
+	msg := strings.TrimSpace(string(body))
+	if msg == "" {
+		return ""
+	}
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "<!doctype") || strings.Contains(lower, "<html") {
+		return ""
+	}
+	var gh struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &gh) == nil {
+		if m := strings.TrimSpace(gh.Message); m != "" {
+			msg = m
+		}
+	}
+	msg = strings.Join(strings.Fields(msg), " ")
+	if len(msg) > maxHTTPErrorDetail {
+		return msg[:maxHTTPErrorDetail] + "…"
+	}
+	return msg
 }

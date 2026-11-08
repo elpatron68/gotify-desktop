@@ -84,6 +84,108 @@ func TestDownloadRejectsHTTP(t *testing.T) {
 	}
 }
 
+func TestHTTPErrorDetailOmitsHTML(t *testing.T) {
+	err := httpStatusError("github releases", 404, []byte("<!DOCTYPE html><html><body>GitHub</body></html>"))
+	got := err.Error()
+	if got != "github releases: HTTP 404" {
+		t.Fatalf("got %q", got)
+	}
+	if strings.Contains(got, "<") {
+		t.Fatalf("HTML leaked: %q", got)
+	}
+}
+
+func TestHTTPErrorDetailUsesGitHubJSONMessage(t *testing.T) {
+	err := httpStatusError("github releases", 404, []byte(`{"message":"Not Found","documentation_url":"https://docs.github.com"}`))
+	got := err.Error()
+	if got != "github releases: HTTP 404: Not Found" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestHTTPErrorDetailTruncates(t *testing.T) {
+	long := strings.Repeat("x", maxHTTPErrorDetail+50)
+	err := httpStatusError("download", 500, []byte(long))
+	got := err.Error()
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("expected truncation: %q", got)
+	}
+	if len(got) > len("download: HTTP 500: ")+maxHTTPErrorDetail+3 {
+		t.Fatalf("too long: %d", len(got))
+	}
+}
+
+func TestLatestReleaseRejectsHTMLBody(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/x/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("<!DOCTYPE html><html><head><title>Not Found</title></head></html>"))
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	c := &Client{APIURL: srv.URL + "/repos/x/releases/latest", HTTP: srv.Client()}
+	_, err := c.LatestRelease(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "<") {
+		t.Fatalf("HTML leaked: %v", err)
+	}
+	if !strings.Contains(err.Error(), "HTTP 404") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestLatestReleaseRetriesTransientGateway(t *testing.T) {
+	var hits int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/x/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if hits < 3 {
+			w.WriteHeader(http.StatusGatewayTimeout)
+			_, _ = w.Write([]byte("<!DOCTYPE html><html></html>"))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(Release{TagName: "v1.2.3"})
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	c := &Client{APIURL: srv.URL + "/repos/x/releases/latest", HTTP: srv.Client()}
+	rel, err := c.LatestRelease(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rel.TagName != "v1.2.3" {
+		t.Fatalf("tag=%q", rel.TagName)
+	}
+	if hits != 3 {
+		t.Fatalf("hits=%d", hits)
+	}
+}
+
+func TestLatestReleaseDoesNotRetryNotFound(t *testing.T) {
+	var hits int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/x/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"Not Found"}`))
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	c := &Client{APIURL: srv.URL + "/repos/x/releases/latest", HTTP: srv.Client()}
+	_, err := c.LatestRelease(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if hits != 1 {
+		t.Fatalf("hits=%d want 1", hits)
+	}
+}
+
 func TestDownloadChecksumMismatch(t *testing.T) {
 	payload := []byte("package-bytes")
 	sumsBody := strings.Repeat("a", 64) + "  gotify-desktop-linux-amd64\n"
